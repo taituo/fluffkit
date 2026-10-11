@@ -168,7 +168,7 @@ Furby Connect (2016, Bluetooth, LCD eyes). Not the 2012/Boom models (which use a
 - [ ] Decode the MTR motor format and write new dances
 - [ ] 3D preview of motor and eye sequences
 - [ ] Lip sync (LPS) generated from your own audio
-- [ ] Send the encoder fix upstream to John-K/a1800_codec
+- [x] Encoder fix reported upstream: [John-K/a1800_codec#2](https://github.com/John-K/a1800_codec/issues/2) (PR when wanted)
 
 ## Credits
 
