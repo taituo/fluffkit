@@ -185,6 +185,20 @@ frame lists: u32 word offset of each frame
 - the custom frames go into 13 (left, palette 4, ref 5362) and 12 (right, palette 5, ref 6386);
 - marked sequences become `[type, playlist, motor/lips…, 0x8401, 0]`.
 
+## Firmware audio (.AMF on the NAND)
+
+- The firmware's audio megafiles use **exactly the DLC AMF layout**: `u32 count | u32 offset[count] | clips`, with `offset[0] = 4·(count+1)` **[verified]**. This covers `Personalities/*/*.AMF`, `Downloads/TOY.AMF` and `AudioMegafiles/*.bin`.
+- Every clip is a normal A1800 track at 16 kbps **[verified]**. All 2112 A1800 clips of `Base.AMF` decode without error, and their spectrum is speech-like (median spectral flatness 0.05, against 0.09 for the DLC's speech and 0.99 for noise). Random data makes the decoder fail immediately.
+- Sizes:
+
+  | file | A1800 clips | audio |
+  |---|---|---|
+  | Base.AMF | 2112 | 63.7 min |
+  | the other six personalities | 1350–1637 each | about 46–53 min each |
+  | TOY.AMF | 107 | 7.2 min |
+
+- The last 4 entries of each personality AMF start with `SP62ALP` and are some other GeneralPlus format (songs?). That format is **not decoded**.
+
 ## Upload over BLE [ctxis]
 
 1. `0x50 0x00 <size u24 BE> <slot> <name 12 B> 00 00` on the GeneralPlus characteristic. Furby replies `24 02` when it is ready to receive.

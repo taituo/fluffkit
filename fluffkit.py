@@ -13,6 +13,7 @@ Commands:
   pack    pack.txt -o pack.dlc          build a pack (one item per line: text or audio file)
   check   pack.dlc [--export dir]       verify a pack, decode its tracks to WAV (+ eyes.gif)
   eyes    frames... -o eyes.gif         preview an eye animation in Furby's colours
+  amf     Base.AMF [-o dir] [--wav]     list/extract Furby's own firmware voice clips (A1800)
   upload  pack.dlc                      upload (delete -> upload -> load -> activate)
   say     3 | 3 7 "night" | -          play item(s); "-" keeps the connection open and reads stdin
   slots                                 list the 60 slots (75/x/y/z)
@@ -306,6 +307,44 @@ def cmd_check(args) -> None:
         print(f"eye preview: {Path(args.export) / 'eyes.gif'}")
 
 
+def amf_clips(data: bytes) -> list[bytes]:
+    """Firmware audio files (Personalities/*/*.AMF, Downloads/TOY.AMF, AudioMegafiles/*.bin)
+    use the same layout as a DLC's AMF section: u32 count | u32 offset[count] | clips,
+    each clip an A1800 track (u32 frame bytes + 2 | u16 16000 | frames)."""
+    n = struct.unpack_from("<I", data, 0)[0]
+    if not 0 < n < 100000 or struct.unpack_from("<I", data, 4)[0] != 4 * (n + 1):
+        die("not an AMF file")
+    clips = []
+    for o in struct.unpack_from(f"<{n}I", data, 4):
+        ln, br = struct.unpack_from("<IH", data, o)
+        ok = br == BITRATE and (ln - 2) % FRAME_BYTES == 0 and o + 4 + ln <= len(data)
+        clips.append(data[o:o + 4 + ln] if ok else None)  # None: another codec (e.g. 'SP..ALP' songs)
+    return clips
+
+
+def cmd_amf(args) -> None:
+    """List or extract Furby's own firmware voice clips (e.g. Personalities/Base/Base.AMF)."""
+    clips = amf_clips(Path(args.amf).read_bytes())
+    good = [c for c in clips if c]
+    secs = sum(len(c) - 6 for c in good) / FRAME_BYTES * 0.02
+    other = len(clips) - len(good)
+    print(f"{args.amf}: {len(good)} A1800 clips, {secs / 60:.1f} min of audio"
+          + (f" (+{other} in another format, skipped)" if other else ""))
+    if not args.out:
+        return
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    picked = [(k, c) for k, c in enumerate(clips) if c]
+    picked = picked[:args.limit] if args.limit else picked
+    for k, body in picked:
+        stem = out / f"clip{k:04d}"
+        if args.wav:
+            decode_body(body, stem.with_suffix(".wav"))
+        else:
+            stem.with_suffix(".a18").write_bytes(GP_HEADER + body)
+    print(f"wrote {len(picked)} clips to {out}")
+
+
 def cmd_eyes(args) -> None:
     """Preview an eye animation exactly as it would be packed (quantised to Furby's palette)."""
     import eyes
@@ -447,6 +486,9 @@ def main() -> None:
     p.add_argument("--no-mirror", action="store_true", help="right eye = left eye, not mirrored")
     p.add_argument("--eye-frames", type=int, default=8, help="max distinct frames per eye (size vs smoothness)")
     p = sub.add_parser("check"); p.add_argument("dlc"); p.add_argument("--export")
+    p = sub.add_parser("amf", help="list/extract firmware .AMF audio clips (A1800)")
+    p.add_argument("amf"); p.add_argument("-o", "--out"); p.add_argument("--wav", action="store_true")
+    p.add_argument("--limit", type=int, default=0)
     p = sub.add_parser("eyes", help="preview an eye animation as Furby will show it")
     p.add_argument("files", nargs="+"); p.add_argument("-o", "--output", default="eyes.gif")
     p.add_argument("--right", nargs="+"); p.add_argument("--no-mirror", action="store_true")
@@ -472,7 +514,7 @@ def main() -> None:
     elif a.cmd == "decode":
         decode_body(read_a18_body(Path(a.input)), Path(a.output))
     else:
-        {"pack": cmd_pack, "check": cmd_check, "slots": cmd_slots, "eyes": cmd_eyes,
+        {"pack": cmd_pack, "check": cmd_check, "slots": cmd_slots, "eyes": cmd_eyes, "amf": cmd_amf,
          "upload": cmd_upload, "say": cmd_say}[a.cmd](a)
 
 

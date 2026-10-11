@@ -90,6 +90,17 @@ Lines tagged `[eyes]` in the pack file show the animation while they play:
 - A pack holds one custom animation, using the same mechanism as the 2017 Context IS demo. Their custom eyes ran on a real Furby.
 - SVG is rasterised with `resvg`, `rsvg-convert` or ffmpeg's librsvg, whichever is installed.
 
+## Furby's own voice
+
+Furby's firmware stores its whole voice library in `.AMF` files on its NAND (`Personalities/<name>/<name>.AMF`, `Downloads/TOY.AMF`, `AudioMegafiles/*.bin`). They use the same layout as a DLC's audio section, and the clips are ordinary A1800 audio, so fluffkit decodes them:
+
+```bash
+fluffkit.py amf Base.AMF                      # 2112 A1800 clips, 63.7 min of audio
+fluffkit.py amf Base.AMF -o clips/ --wav      # decode them all to WAV
+```
+
+Use the extracted `.a18` clips in your own packs, for example to mix Furby's real giggles into new phrases. The firmware files are Hasbro's, so dump them from your own Furby. None are included here.
+
 ## Commands
 
 | command | what it does |
@@ -97,6 +108,7 @@ Lines tagged `[eyes]` in the pack file show the animation while they play:
 | `pack FILE -o pack.dlc` | build a pack (`--engine`, `--voice`, `--instructions`, `--pitch`, `--gain`, `--music`, `--eyes`) |
 | `check pack.dlc [--export DIR]` | verify the pack and decode every item back to WAV (plus `eyes.gif` if the pack has eyes) |
 | `eyes FRAMES... -o eyes.gif` | preview an eye animation exactly as it will be packed |
+| `amf FILE.AMF [-o DIR] [--wav]` | list or extract Furby's own firmware voice clips |
 | `upload pack.dlc [--slot 2] [--address MAC]` | delete the slot, upload, load and activate |
 | `say N` / `say "text"` | play item N, or the first item whose text matches |
 | `say 3 7 "night"` | chain several items in one connection |

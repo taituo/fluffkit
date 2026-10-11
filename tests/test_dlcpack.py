@@ -170,3 +170,14 @@ class A18Pipeline(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FirmwareAMF(unittest.TestCase):
+    def test_amf_layout_same_as_dlc(self):
+        import fluffkit
+        tracks = [track(3, 1), track(2, 2)]
+        other = b"SP62ALP\0" + b"\0" * 20          # a non-A1800 entry, as at the end of personality AMFs
+        data = bytearray(DLC._build_amf(tracks + [other]))
+        clips = fluffkit.amf_clips(bytes(data))
+        self.assertEqual(clips[:2], tracks)
+        self.assertIsNone(clips[2])
