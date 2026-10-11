@@ -1,97 +1,204 @@
 # fluffkit
 
-**Put your own sounds into a Furby Connect (2016), played through its own speaker, from Linux or macOS. No Windows, no proprietary DLL.**
+**Put your own sounds into a Furby Connect: phrases in any language, your own recordings, songs, sound effects. Everything plays from Furby's own speaker, with its beak, eyes and body moving. Runs on Linux and macOS, with no Windows and no proprietary DLL.**
 
-Phrases in any language (OpenAI / Piper / espeak-ng TTS), your own recordings, songs, sound effects → GeneralPlus A1800 (`.a18`) → DLC pack → Bluetooth upload → trigger any item instantly over BLE.
+```text
+"Hello! Wanna play?"   ─┐
+grandma_says_hi.wav     ├─► 16 kHz mono ─► A1800 (.a18) ─► DLC pack ─► Bluetooth ─► fluffkit say 3
+[music] birthday.mp3   ─┘   (TTS/ffmpeg)    fixed open       up to 60     ~1.5 min     instant,
+                                            encoder          items        once         any time
+```
 
-It started as "make my kids' Furby speak Finnish" and ended up as a general custom-content toolkit.
+It started as "make my kids' Furby speak Finnish" and grew into a general custom-content toolkit.
 
-> ⚠️ **Untested on real hardware.** The author is still waiting for his Furby to arrive. 🐣
-> Everything below has been verified against data (see [What has been verified](#what-has-been-verified)), but nobody has heard it come out of an actual Furby yet. If you try it, please open an issue and tell us what happened.
+> [!WARNING]
+> **Untested on real hardware: the author is still waiting for his Furby to arrive.** 🐣
+> Every step has been checked against data (see [Verification](#verification)), but nobody has heard fluffkit audio come out of a real Furby yet. If you try it, please [open an issue](../../issues) and tell us what happened, whether it worked or not.
 
-## Why this exists
+---
 
-Furby Connect plays custom audio only from DLC files encoded with GeneralPlus's A1800 codec. Until now the only working encoder was GeneralPlus's Windows `A1800.DLL` (via 32-bit Python 2.7, a Windows VM, Wine or a Windows CI runner). An open reimplementation, [John-K/a1800_codec](https://github.com/John-K/a1800_codec), appeared in 2026. Its decoder was right, but its encoder had a scaling bug that made output ~1.4× too loud and much noisier.
+## Contents
 
-This repo:
+- [Quick start](#quick-start)
+- [Pack files](#pack-files)
+- [Commands](#commands)
+- [Install](#install) ([Steam Deck](#steam-deck), [macOS](#macos))
+- [How it works](#how-it-works)
+- [The A1800 encoder fix](#the-a1800-encoder-fix)
+- [Verification](#verification)
+- [Troubleshooting](#troubleshooting)
+- [FAQ](#faq)
+- [Roadmap](#roadmap)
+- [Credits](#credits)
+- [License](#license)
 
-1. **Fixes the open A1800 encoder** (`a1800/`, see [`a1800/NOTICE`](a1800/NOTICE)). With the fix, its output matches the original DLL on the same input:
+## Quick start
 
-   | encoder (same input, same decoder) | corr | SNR | RMS ratio |
-   |---|---|---|---|
-   | GeneralPlus `A1800.DLL` | 0.961 | 11.1 dB | 0.97 |
-   | upstream a1800_codec | 0.865 | 6.0 dB | 1.37 |
-   | **this fork** | **0.961** | **11.1 dB** | **0.97** |
+```bash
+git clone https://github.com/taituo/fluffkit && cd fluffkit
+(cd a1800 && cargo build --release)                 # the audio codec (or download it from Releases into ./bin/)
+git clone https://github.com/martinwoodward/PyFluff ../PyFluff
+python3 -m venv .venv && .venv/bin/pip install -e ../PyFluff
 
-   Gain indices and frame parameters are identical to the DLL's in ~95% of frames.
-2. **Builds custom packs** with a small, self-contained DLC writer (`dlcpack.py`). It puts up to 60 items (phrases, recordings, music) into the input-75 actions of the stock `tu003410.dlc`, the same route Context IS used in 2017 to play custom audio on a real Furby.
-3. **Uploads and triggers** them with [PyFluff](https://github.com/martinwoodward/PyFluff) over BLE.
+export OPENAI_API_KEY=sk-...                        # or use --engine piper / espeak
+.venv/bin/python fluffkit.py pack examples/english.txt -o pack.dlc --pitch 3
+.venv/bin/python fluffkit.py check pack.dlc --export listen/   # listen before uploading
+.venv/bin/python fluffkit.py upload pack.dlc                   # wake Furby first, ~1.5-2 min
+.venv/bin/python fluffkit.py say 1                             # 🎉
+```
 
-## What has been verified
+## Pack files
 
-- The decoder handles all 146 tracks of Hasbro's `tu003410.dlc` and the DLL-encoded files from [furbhax](https://github.com/swarley7/furbhax). On a DLL-encoded file it reaches correlation 0.961 with the source, at zero lag.
-- The fixed encoder matches the DLL (table above). Frame timing matches the DLL (the first frame is dropped), and track headers use the same layout as Furby's own tracks: `u32 len = frame bytes + 2`, `u16 16000`, then 40-byte frames.
-- The full pipeline on a Finnish test phrase reaches correlation 0.987 and SNR 16 dB.
-- `dlcpack.py`:
-  - An untouched DLC round-trips byte-for-byte.
-  - A built pack is byte-identical to one built with the Context IS Python library.
-  - Only the AMF (audio) and APL (playlist) sections change; the other 7 sections are byte-identical to the original.
-  - The header offsets add up to the file size.
-- The codec's 52 unit tests pass.
-- **Not verified:** actual playback on a Furby.
+A pack file is plain text with one item per line. Each item gets its own slot (1–60), and slot N plays with `fluffkit say N`.
+
+```text
+# lines starting with # are comments
+Hi! I'm your Furby. Wanna play?          ← text: spoken with TTS, in whatever language it's written in
+Hei! Leikitäänkö?                        ← Finnish works the same way
+~/recordings/grandma_says_hi.wav         ← your own recording (.wav .mp3 .flac .ogg .m4a)
+[music] ~/music/birthday_song.mp3        ← [music] / [sfx]: keep dynamics, no pitch shift
+~/packs/old/doorbell.a18                 ← already-encoded A18 file
+```
+
+Speech is high-passed and normalised for Furby's tiny speaker. `--pitch 3` raises the voice three semitones without changing the tempo, which sounds a lot more Furby-like. TTS results are cached, so you can edit a pack and rebuild it without paying for the same phrases twice.
+
+`pack` writes `pack.dlc` and a `pack.json` map from item number to action code, text and duration. `say` uses the map.
+
+## Commands
+
+| command | what it does |
+|---|---|
+| `pack FILE -o pack.dlc` | build a pack (`--engine`, `--voice`, `--instructions`, `--pitch`, `--gain`, `--music`) |
+| `check pack.dlc [--export DIR]` | verify the pack and decode every item back to WAV |
+| `upload pack.dlc [--slot 2] [--address MAC]` | delete the slot, upload, load and activate |
+| `say N` / `say "text"` | play item N, or the first item whose text matches |
+| `encode IN -o OUT.a18 [--gp-header]` | any audio file to Furby A18 (`--gp-header` writes the A1800.DLL-style file header) |
+| `decode IN.a18 -o OUT.wav` | A18 to WAV (DLL-made files work too) |
+| `tts "text" -o out.wav` | just the text-to-speech step |
+| `slots` | list the 60 slots (action codes `75/0/x/y`) |
+
+**TTS engines:**
+- `openai` (default) uses `gpt-4o-mini-tts`. Change the model with `FLUFFKIT_TTS_MODEL` and the voice with `--voice` or `FLUFFKIT_TTS_VOICE`. `--instructions` sets the speaking style.
+- `piper` runs locally: `--voice path/to/voice.onnx`.
+- `espeak` needs no network or key, but sounds robotic: `FLUFFKIT_ESPEAK_VOICE=fi`.
 
 ## Install
 
-Requirements: Python 3.11+, `ffmpeg`, Rust (to build the codec), plus `bleak` and PyFluff for BLE.
+You need Python 3.11+, `ffmpeg`, Rust (only to build the codec) and Bluetooth LE. [PyFluff](https://github.com/martinwoodward/PyFluff), which brings in `bleak`, is needed for `upload` and `say`.
+
+The codec builds with `cd a1800 && cargo build --release`. Prebuilt binaries for Linux x86-64 and macOS arm64 are attached to [Releases](../../releases); put one in `./bin/a1800_codec`, or point the `A1800_CODEC` environment variable at it.
+
+### Steam Deck
+
+Use Desktop mode and Konsole. The root filesystem is read-only, so keep everything in your home directory:
 
 ```bash
-git clone https://github.com/<you>/fluffkit && cd fluffkit
-(cd a1800 && cargo build --release)              # or grab a binary from Releases into ./bin/
-git clone https://github.com/martinwoodward/PyFluff ../PyFluff
-python3 -m venv .venv && .venv/bin/pip install -e ../PyFluff
+# ffmpeg: static build
+mkdir -p ~/.local/bin && cd /tmp
+curl -LO https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+tar xf ffmpeg-release-amd64-static.tar.xz && cp ffmpeg-*-static/ffmpeg ~/.local/bin/
+# codec: Releases binary into fluffkit/bin/, or install rustup into your home directory and build
 ```
 
-**Steam Deck (Desktop mode):** the root filesystem is read-only. Install Rust with `rustup` in your home directory, use a static `ffmpeg` in `~/.local/bin`, or do everything inside `distrobox`.
+The Deck's built-in Bluetooth (BlueZ) works with `bleak`. Alternatively, run everything inside `distrobox`.
 
-## Use
+### macOS
 
 ```bash
-export OPENAI_API_KEY=sk-...
-python3 fluffkit.py pack examples/english.txt -o pack.dlc --pitch 3   # one item per line: text or an audio file
-python3 fluffkit.py check pack.dlc --export listen/                    # decode back to WAV and listen first
-.venv/bin/python fluffkit.py upload pack.dlc                           # ~1.5–2 min over BLE
-.venv/bin/python fluffkit.py say 1                                     # or: say "tickles"
+brew install ffmpeg rust
 ```
 
-- A line is either text (spoken with TTS, in whatever language it is written in) or a path to a `.wav/.mp3/.flac/.ogg/.m4a/.a18` file. Prefix `[music]` or `[sfx]` to keep dynamics and skip the pitch shift.
-- `--engine openai|piper|espeak`, `--voice`, `--instructions`.
-- `--pitch N` raises the voice by N semitones without changing the tempo.
-- Examples: [`examples/english.txt`](examples/english.txt), [`examples/finnish.txt`](examples/finnish.txt).
-- Other commands: `encode` / `decode` single files, `slots`.
-- The base DLC is downloaded on first use from [ctxis/Furby](https://github.com/ctxis/Furby) and checked against a SHA-256 hash. No Hasbro files are included in this repo.
+CoreBluetooth works with `bleak`, but macOS shows a UUID instead of the MAC address, so use `--address` with the UUID or let PyFluff scan.
 
-## Limits and ideas
+## How it works
 
-- Each pack holds at most 60 items. Long audio is fine, but the upload time grows with it.
-- Uploads run at ~4 kB/s. That figure comes from the 20 B / 5 ms pacing PyFluff and bluefluff use, not from a measured Furby limit, so it may be possible to go faster.
-- New sentences need a re-upload. For live LLM replies, play them through an external speaker and trigger silent "talking" actions so Furby moves its beak and eyes in time.
-- The mouth (LPS) still follows the original track's pattern.
-- Next steps: silent gesture actions, decoding the MTR motor format to write new dances, and a 3D preview.
+Furby Connect cannot stream audio. It plays sounds that are stored in its flash memory, and new sounds arrive as **DLC files**. Hasbro's Furby Connect World app used to download them from Amazon S3 and push them to the toy over Bluetooth, in exactly the same way as `fluffkit upload`. The app then triggered the reactions with action `75/x/y/z` while kids watched videos.
+
+fluffkit reuses that mechanism:
+
+1. **Audio:** each item is turned into 16 kHz mono and encoded with GeneralPlus **A1800** at 16 kbps (40-byte frames, 20 ms each), the format of every stock Furby track.
+2. **Pack:** `dlcpack.py` takes the stock English DLC `tu003410.dlc`. It shrinks its 146 original tracks to 128-byte stubs, the same trick Context IS used in 2017. Each of the 60 input-75 playlists then points to one of your items. The other sections (eye graphics, motor and lip sequences) are left untouched, so every item still comes with its original eye animation, beak and body movement.
+3. **Upload:** PyFluff announces the file with `0x50`, streams it in 20-byte BLE packets, then loads (`0x60`) and activates (`0x61`) it.
+4. **Play:** `say N` sends one action command, and Furby starts immediately.
+
+The base DLC is downloaded on first use from [ctxis/Furby](https://github.com/ctxis/Furby) and checked against a SHA-256 hash. **No Hasbro files are included in this repository.**
+
+## The A1800 encoder fix
+
+Until 2026 the only A1800 encoder was GeneralPlus's Windows `A1800.DLL`, which people ran through 32-bit Python 2.7, a Windows VM, Wine or a Windows CI runner. Then [John-K/a1800_codec](https://github.com/John-K/a1800_codec) reverse-engineered the DLL into clean-room Rust. Its decoder is correct, but its encoder quantised the subbands with the wrong scale exponent: one recomputed from the gains, instead of the one the analysis filter actually applied. The output came out ~1.4× too loud and much noisier.
+
+`a1800/` fixes that and also picks the rate-control parameter from actual Huffman bit counts, the way the DLL does. The test below compares three encodings of the same source file, all decoded with the same decoder:
+
+| encoder | correlation | SNR | RMS ratio |
+|---|---|---|---|
+| GeneralPlus `A1800.DLL` | 0.961 | 11.1 dB | 0.97 |
+| upstream a1800_codec | 0.865 | 6.0 dB | 1.37 |
+| **fluffkit `a1800/`** | **0.961** | **11.1 dB** | **0.97** |
+
+The fixed encoder's gain indices and frame parameters are identical to the DLL's in ~95% of frames. Details are in [`a1800/NOTICE`](a1800/NOTICE), and the patch is in [`a1800/encoder-fix.diff`](a1800/encoder-fix.diff).
+
+## Verification
+
+What has been checked without a Furby:
+
+- **Decoder:** it handles all 146 tracks of `tu003410.dlc` and the DLL-encoded reference files from [furbhax](https://github.com/swarley7/furbhax). On the DLL-encoded file it reaches correlation 0.961 with the source, at zero lag.
+- **Encoder:** its output matches the DLL (table above).
+  - Frame timing matches the DLL.
+  - Track headers use Furby's own layout: `u32 length = frame bytes + 2`, then `u16 16000`, then the frames.
+- **End to end:** a speech test phrase reaches correlation 0.987 and SNR 16 dB.
+- **DLC writer:**
+  - A stock DLC round-trips byte-for-byte.
+  - Built packs are byte-identical to packs built with the Context IS Python library.
+  - Only the AMF (audio) and APL (playlist) sections change.
+  - The header offsets add up to the file size.
+- **Codec unit tests:** all 52 pass.
+- **Not verified:** playback on a real Furby. Help wanted!
+
+## Troubleshooting
+
+- **Watch the slot status.** Open Furby's debug screen (`pyfluff debug`, repeat until the slot page shows). Each slot shows `0` empty, `1` upload in progress or failed, `2` uploaded, `3` active.
+- **Nothing plays after upload:** restart Furby and try again. Furby seems to need a reboot between two updates.
+- **Upload stalls:** keep Furby awake and close to the computer, and try another slot with `--slot 1`. The slots are about 2 MB, 1 MB and 0.5 MB.
+- **Furby acts weird:** a FurBLE reset clears the DLC storage. Hold Furby upside down, hold the tongue and pull the tail for about 10 seconds.
+
+## FAQ
+
+**Can Furby say what an LLM answers, live?**
+Not through its own speaker. Each new sound needs an upload of about a minute and a half. The practical setup is a pack of fixed phrases (greetings, routines, home-automation announcements) plus an external speaker for free-form replies, while silent actions move Furby's beak and eyes in time (on the roadmap).
+
+**Why only 60 items?**
+That is how many independent input-75 playlists the base DLC has. A pack can be any size the slot fits, and long items are fine, but the upload time grows with the size.
+
+**Why is the upload slow?**
+PyFluff and bluefluff send 20 bytes every 5 ms, which works out to 4 kB/s. That pacing was never measured against Furby's real limit, so faster may work. Experiments are welcome.
+
+**Which Furby?**
+Furby Connect (2016, Bluetooth, LCD eyes). Not the 2012/Boom models (which use audio-chirp control) and not the 2023 Furby.
+
+## Roadmap
+
+- [ ] Confirm playback on a real Furby (waiting for the delivery 🚚)
+- [ ] Faster uploads: tune the BLE pacing and slim the base DLC
+- [ ] Silent "talk" and gesture actions to accompany an external speaker
+- [ ] Decode the MTR motor format and write new dances
+- [ ] 3D preview of motor and eye sequences
+- [ ] Lip sync (LPS) generated from your own audio
+- [ ] Send the encoder fix upstream to John-K/a1800_codec
 
 ## Credits
 
-All the hard reverse engineering was done by others:
+fluffkit stands on years of other people's reverse engineering:
 
-- [Context Information Security / ctxis/Furby](https://github.com/ctxis/Furby): DLC format and the original custom-audio demo (2017)
-- [Jeija/bluefluff](https://github.com/Jeija/bluefluff) (Florian Euchner): BLE protocol and DLC flashing
-- [John-K/a1800_codec](https://github.com/John-K/a1800_codec): clean-room A1800 codec (Apache-2.0), the base of `a1800/`
+- [Context Information Security / ctxis/Furby](https://github.com/ctxis/Furby): the DLC format and the original custom-audio demo (2017)
+- [Jeija/bluefluff](https://github.com/Jeija/bluefluff) (Florian Euchner): the BLE protocol and DLC flashing
+- [John-K/a1800_codec](https://github.com/John-K/a1800_codec): the clean-room A1800 codec (Apache-2.0), base of `a1800/`
 - [mmaker/furpy3](https://github.com/mmaker/furpy3) and [benbalter/Furby](https://github.com/benbalter/Furby): Python 3 DLC tooling and NAND exploration
 - [swarley7/furbhax](https://github.com/swarley7/furbhax) (l0ss & swarley): hardware dumps and DLL-encoded reference audio
 - [martinwoodward/PyFluff](https://github.com/martinwoodward/PyFluff): Python BLE control
 
 ## License
 
-- Everything except `a1800/`: [MIT](LICENSE).
-- `a1800/`: Apache-2.0 (a modified copy of John-K/a1800_codec; see `a1800/NOTICE`).
+- Everything except `a1800/` is under the [MIT License](LICENSE).
+- `a1800/` is under the Apache-2.0 license. It is a modified copy of John-K/a1800_codec, and the changes are listed in [`a1800/NOTICE`](a1800/NOTICE).
 
-Furby and Furby Connect are trademarks of Hasbro. This project is not affiliated with or endorsed by Hasbro. It is an independent interoperability project for people's own toys.
+Furby and Furby Connect are trademarks of Hasbro. fluffkit is an independent interoperability project and is not affiliated with or endorsed by Hasbro. Use it with your own toy, at your own risk.
