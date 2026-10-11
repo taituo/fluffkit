@@ -26,6 +26,7 @@ It started as "make my kids' Furby speak Finnish" and grew into a general custom
 - [How it works](#how-it-works)
 - [The A1800 encoder fix](#the-a1800-encoder-fix)
 - [Verification](#verification)
+- [DLC format reference](FORMAT.md)
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
 - [Roadmap](#roadmap)
@@ -133,6 +134,8 @@ What has been checked without a Furby:
   - The header offsets add up to the file size.
 - **Codec unit tests:** all 52 pass.
 - **Not verified:** playback on a real Furby. Help wanted!
+
+Run the checks yourself with `python3 -m unittest discover -s tests -v`. CI runs them on every push, including the real-DLC tests. The full format write-up is in [FORMAT.md](FORMAT.md), where every claim is labelled verified, observed or hypothesis.
 
 ## Troubleshooting
 

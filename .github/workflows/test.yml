@@ -1,0 +1,19 @@
+name: test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: build and test codec
+        run: cargo test --release && cargo build --release
+        working-directory: a1800
+      - name: fetch base DLC (not stored in the repo)
+        run: |
+          mkdir -p ~/.cache/fluffkit
+          curl -sSfL https://raw.githubusercontent.com/ctxis/Furby/master/dlc/dlc2/tu003410.dlc -o ~/.cache/fluffkit/tu003410.dlc
+          echo "efe11a82a7f837ebd8ab7a76e5873e0be4a0aa23ccedc73cb9c4601139c8e203  $HOME/.cache/fluffkit/tu003410.dlc" | sha256sum -c
+      - name: python tests
+        run: python -m unittest discover -s tests -v
