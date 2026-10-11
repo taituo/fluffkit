@@ -25,7 +25,7 @@ The reference file is `tu003410.dlc` (1,129,942 bytes, SHA-256 `efe11a82…c8e20
 
 | section | bytes in tu003410 | contents |
 |---|---|---|
-| PAL | 768 | colour palettes for the eyes |
+| PAL | 768 | colour palettes for the eyes (RGB555) |
 | SPR | 5,460 | eye animation playlists and composited frames |
 | CEL | 242,688 | eye images |
 | XLS | 40,690 | action table: maps action codes to sequences |
@@ -152,13 +152,38 @@ The structure is **[ctxis]/[verified]** by round trip. The meaning of the words 
 
 Furby Connect has one motor on a cam: ears, eyelids and body tilt are all one position. The beak is a separate electromagnet.
 
-## PAL, CEL, SPR: eyes [ctxis]
+## PAL, CEL, SPR: eyes
 
-- **PAL:** palettes of 64 colours × u16 (128 bytes each; 6 in tu003410). Each colour is RGB555, and bit 15 marks a transparent colour.
-- **CEL:** 64×64-pixel images with 6-bit palette indices, 3 bytes per 4 pixels, 3072 bytes per cel (79 in tu003410). The eye LCDs show four quarter-cels per frame.
-- **SPR:** 16 frame playlists, frames made of four (cel, palette) pairs, and layers.
+**PAL** [verified]
 
-See `ctxis/Furby` (`dump_cels`, `quarterize`, `extract_palette`) for working code.
+- 64 colours × u16 per palette (128 bytes; 6 palettes in tu003410).
+- Each colour is RGB555 (`0RRRRRGGGGGBBBBB`); bit 15 set means transparent.
+
+**CEL** [verified]
+
+- 64×64-pixel images, 3072 bytes each (79 in tu003410).
+- Each pixel is a 6-bit palette index, packed 4 pixels per 3 bytes, MSB first: `aaaaaabb bbbbcccc ccdddddd`.
+- `eyes.py` decodes all 79 cels exactly as the Context IS library does, and re-encodes them byte-for-byte.
+
+**SPR** [verified]
+
+The structure round-trips and agrees with the Context IS parser:
+
+```
+16 x { u16 framecount | u32 frame-list offset (words) | u32 layer | u32 0x40 }
+frames: 9 x u16 = (cel, palette ref) x 4 quarters + 0xFFFF
+frame lists: u32 word offset of each frame
+```
+
+- The quarters are TL, TR, BL, BR of one 128×128 eye **[verified]**: stock frames render correctly.
+- Palette refs are not palette indices. Rendering the stock chilli and flame animations with palette 4 for ref 5362 and palette 5 for ref 6386 gives the correct images **[verified]**. Ref 4338 is used for the base layer.
+- Playlists 8/9 (base layer), 10/11 (chilli layer) and 12/13 (flame layer) hold 38 frames each, and together they form the DLC's own eye animation. Playlists 12 and 13 are the right and left eye **[ctxis demo]**.
+
+**Showing the animation** [ctxis demo]: a sequence eye word `0x8401` plays the DLC's own eye animation. Stock sequences only use `0x80nn` and `0xA0nn`, which refer to firmware eye animations **[observed]**. fluffkit's `eyes.py` follows the demo that ran on a real Furby:
+
+- cel 1 = white, and playlists 8–11 show only it;
+- the custom frames go into 13 (left, palette 4, ref 5362) and 12 (right, palette 5, ref 6386);
+- marked sequences become `[type, playlist, motor/lips…, 0x8401, 0]`.
 
 ## Upload over BLE [ctxis]
 
@@ -177,3 +202,4 @@ The debug screen shows one number per slot: 0 empty, 1 receiving or failed, 2 up
 - [ ] MTR opcodes and cam position mapping (plan: test packs + video)
 - [ ] The header counter field and the SEQ type word
 - [ ] Maximum upload rate before Furby drops packets
+- [ ] Eye frame timing (38-frame playlist duration) and whether more than one custom animation per pack is possible

@@ -21,6 +21,7 @@ It started as "make my kids' Furby speak Finnish" and grew into a general custom
 
 - [Quick start](#quick-start)
 - [Pack files](#pack-files)
+- [Eyes](#eyes)
 - [Commands](#commands)
 - [Install](#install)
 - [How it works](#how-it-works)
@@ -65,12 +66,37 @@ Speech is high-passed and normalised for Furby's tiny speaker. `--pitch 3` raise
 
 `pack` writes `pack.dlc` and a `pack.json` map from item number to action code, text and duration. `say` uses the map.
 
+## Eyes
+
+<p align="center"><img src="docs/eyes-thinking.gif" alt="thinking eyes"> <img src="docs/eyes-hearts.gif" alt="heart eyes"> <img src="docs/eyes-blink.gif" alt="blinking eyes"></p>
+
+You can also give Furby's LCD eyes a custom animation from PNG, GIF, WebP or **SVG** frames: your own drawings, generated art, or SVG that an LLM writes ("make Furby surprised eyes").
+
+```bash
+python3 examples/eyes/make_examples.py                    # generates thinking / blink / hearts SVG frames
+fluffkit.py eyes examples/eyes/thinking/*.svg -o eyes.gif  # preview in Furby's colours
+fluffkit.py pack examples/english.txt -o pack.dlc --eyes examples/eyes/thinking/*.svg
+```
+
+Lines tagged `[eyes]` in the pack file show the animation while they play:
+
+```text
+[eyes] Hmm, let me think about that...
+```
+
+- Each eye is 128×128 pixels with 64 colours. fluffkit fits the image, quantises it to Furby's 16-bit palette and splits it into four 64×64 cels. Identical tiles are stored only once.
+- The right eye is a mirror of the left by default. Use `--eyes-right` for separate frames, or `--no-mirror` to show the same frames on both eyes.
+- Up to 8 distinct frames per eye by default (`--eye-frames`), spread over Furby's 38-frame eye playlist. Packs with custom eyes are *smaller*, because Hasbro's chilli graphics are dropped.
+- A pack holds one custom animation, using the same mechanism as the 2017 Context IS demo. Their custom eyes ran on a real Furby.
+- SVG is rasterised with `resvg`, `rsvg-convert` or ffmpeg's librsvg, whichever is installed.
+
 ## Commands
 
 | command | what it does |
 |---|---|
-| `pack FILE -o pack.dlc` | build a pack (`--engine`, `--voice`, `--instructions`, `--pitch`, `--gain`, `--music`) |
-| `check pack.dlc [--export DIR]` | verify the pack and decode every item back to WAV |
+| `pack FILE -o pack.dlc` | build a pack (`--engine`, `--voice`, `--instructions`, `--pitch`, `--gain`, `--music`, `--eyes`) |
+| `check pack.dlc [--export DIR]` | verify the pack and decode every item back to WAV (plus `eyes.gif` if the pack has eyes) |
+| `eyes FRAMES... -o eyes.gif` | preview an eye animation exactly as it will be packed |
 | `upload pack.dlc [--slot 2] [--address MAC]` | delete the slot, upload, load and activate |
 | `say N` / `say "text"` | play item N, or the first item whose text matches |
 | `say 3 7 "night"` | chain several items in one connection |
@@ -164,6 +190,7 @@ Furby Connect (2016, Bluetooth, LCD eyes). Not the 2012/Boom models (which use a
 
 - [ ] Confirm playback on a real Furby (waiting for the delivery 🚚)
 - [ ] Faster uploads: tune the BLE pacing and slim the base DLC
+- [x] Custom eye animations (PNG/GIF/SVG)
 - [ ] Silent "talk" and gesture actions to accompany an external speaker
 - [ ] Decode the MTR motor format and write new dances
 - [ ] 3D preview of motor and eye sequences

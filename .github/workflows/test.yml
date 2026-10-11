@@ -18,7 +18,7 @@ jobs:
       - name: PyFluff for the BLE tests (simulated Furby, no Bluetooth needed)
         run: |
           git clone --depth 1 https://github.com/martinwoodward/PyFluff ../PyFluff
-          pip install pydantic
+          pip install pydantic pillow
       - name: python tests
         run: python -m unittest discover -s tests -v
         env:

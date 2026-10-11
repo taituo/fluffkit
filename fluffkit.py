@@ -11,7 +11,8 @@ Commands:
   encode  in.wav -o out.a18             any audio file -> Furby A18
   decode  in.a18 -o out.wav             A18 -> WAV (to listen)
   pack    pack.txt -o pack.dlc          build a pack (one item per line: text or audio file)
-  check   pack.dlc [--export dir]       verify a pack, decode its tracks to WAV
+  check   pack.dlc [--export dir]       verify a pack, decode its tracks to WAV (+ eyes.gif)
+  eyes    frames... -o eyes.gif         preview an eye animation in Furby's colours
   upload  pack.dlc                      upload (delete -> upload -> load -> activate)
   say     3 | 3 7 "night" | -          play item(s); "-" keeps the connection open and reads stdin
   slots                                 list the 60 slots (75/x/y/z)
@@ -200,12 +201,27 @@ def read_phrases(path: Path) -> list[str]:
     return lines
 
 
+TAGS = ("music", "sfx", "eyes")
+
+
+def split_tags(line: str) -> tuple[set[str], str]:
+    """'[eyes] [music] song.mp3' -> ({'eyes', 'music'}, 'song.mp3')"""
+    tags = set()
+    while True:
+        low = line.lower()
+        for t in TAGS:
+            if low.startswith(f"[{t}]"):
+                tags.add(t)
+                line = line[len(t) + 2:].strip()
+                break
+        else:
+            return tags, line
+
+
 def phrase_to_body(item: str, args) -> tuple[bytes, str]:
     """A line is an audio file path (.wav/.mp3/.flac/.ogg/.m4a/.a18) or text for TTS. Cached by hash."""
-    music = args.music
-    for tag in ("[music]", "[sfx]"):
-        if item.lower().startswith(tag):
-            item, music = item[len(tag):].strip(), True
+    tags, item = split_tags(item)
+    music = args.music or bool(tags & {"music", "sfx"})
     p = Path(item).expanduser()
     if p.suffix.lower() == ".a18" and p.exists():
         return read_a18_body(p), p.name
@@ -234,15 +250,26 @@ def cmd_pack(args) -> None:
     D = DLC.load(base_dlc(args.base))
     if not args.keep_original_audio:
         D.minify_audio(MINIFIED_TRACK_BYTES)
+    if args.eyes:
+        import eyes
+        info = eyes.inject(D, args.eyes, args.eyes_right, mirror=not args.no_mirror, max_frames=args.eye_frames)
+        print(f"eyes: {info['left']['frames']} + {info['right']['frames']} frames, {info['cels']} cels")
     mapping = {}
     for i, item in enumerate(phrases):
         code, apl, track = SLOTS[i]
+        tags, _ = split_tags(item)
         body, label = phrase_to_body(item, args)
         D.set_phrase(apl, track, body)
+        show_eyes = "eyes" in tags and bool(args.eyes)
+        if "eyes" in tags and not args.eyes:
+            print(f"warning: item {i + 1} has [eyes] but no --eyes animation was given")
+        if show_eyes:
+            import eyes
+            eyes.mark_phrase(D, apl)
         secs = (len(body) - 6) / FRAME_BYTES * 0.02
         mapping[str(i + 1)] = {"text": label, "action": list(code), "apl": apl, "amf": track,
-                               "seconds": round(secs, 2)}
-        print(f"{i + 1:2d}  {'/'.join(map(str, code)):10s} {secs:5.2f}s  {label}")
+                               "seconds": round(secs, 2), "eyes": show_eyes}
+        print(f"{i + 1:2d}  {'/'.join(map(str, code)):10s} {secs:5.2f}s  {'[eyes] ' if show_eyes else ''}{label}")
     out = Path(args.output)
     out.write_bytes(D.build())
     map_path = out.with_suffix(".json")
@@ -273,6 +300,20 @@ def cmd_check(args) -> None:
     p = Path(args.dlc)
     mapping = json.loads(p.with_suffix(".json").read_text(encoding="utf-8"))
     verify(p, mapping, Path(args.export) if args.export else None)
+    if args.export and any(m.get("eyes") for m in mapping.values()):
+        import eyes
+        eyes.preview_gif(DLC.load(p), str(Path(args.export) / "eyes.gif"))
+        print(f"eye preview: {Path(args.export) / 'eyes.gif'}")
+
+
+def cmd_eyes(args) -> None:
+    """Preview an eye animation exactly as it would be packed (quantised to Furby's palette)."""
+    import eyes
+    D = DLC.load(base_dlc(args.base))
+    info = eyes.inject(D, args.files, args.right, mirror=not args.no_mirror, max_frames=args.eye_frames)
+    eyes.preview_gif(DLC(D.build()), args.output)
+    print(f"{args.output}: {info['left']['frames']} + {info['right']['frames']} frames, {info['cels']} cels "
+          f"(~{info['cels'] * 3} kB of eye data)")
 
 
 def cmd_slots(args) -> None:
@@ -401,7 +442,15 @@ def main() -> None:
     p = sub.add_parser("decode"); p.add_argument("input"); p.add_argument("-o", "--output", required=True)
     p = sub.add_parser("pack"); p.add_argument("phrases"); p.add_argument("-o", "--output", default="pack.dlc")
     p.add_argument("--base"); p.add_argument("--keep-original-audio", action="store_true"); audio_opts(p)
+    p.add_argument("--eyes", nargs="+", metavar="IMG", help="eye animation: PNG/GIF/WebP/SVG frames or an animated GIF")
+    p.add_argument("--eyes-right", nargs="+", metavar="IMG", help="separate right-eye frames (default: mirrored left)")
+    p.add_argument("--no-mirror", action="store_true", help="right eye = left eye, not mirrored")
+    p.add_argument("--eye-frames", type=int, default=8, help="max distinct frames per eye (size vs smoothness)")
     p = sub.add_parser("check"); p.add_argument("dlc"); p.add_argument("--export")
+    p = sub.add_parser("eyes", help="preview an eye animation as Furby will show it")
+    p.add_argument("files", nargs="+"); p.add_argument("-o", "--output", default="eyes.gif")
+    p.add_argument("--right", nargs="+"); p.add_argument("--no-mirror", action="store_true")
+    p.add_argument("--eye-frames", type=int, default=8); p.add_argument("--base")
     p = sub.add_parser("slots")
     p = sub.add_parser("upload"); p.add_argument("dlc"); p.add_argument("--slot", type=int, default=2)
     p.add_argument("--address"); p.add_argument("--timeout", type=float, default=900)
@@ -423,7 +472,7 @@ def main() -> None:
     elif a.cmd == "decode":
         decode_body(read_a18_body(Path(a.input)), Path(a.output))
     else:
-        {"pack": cmd_pack, "check": cmd_check, "slots": cmd_slots,
+        {"pack": cmd_pack, "check": cmd_check, "slots": cmd_slots, "eyes": cmd_eyes,
          "upload": cmd_upload, "say": cmd_say}[a.cmd](a)
 
 

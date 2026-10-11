@@ -1,5 +1,6 @@
 # One item per line: text (spoken with TTS) or a path to an audio file.
 # Prefix a line with [music] or [sfx] to keep dynamics and skip the pitch shift.
+# Prefix [eyes] to show the custom eye animation given with --eyes.
 Hi! I'm your Furby. Wanna play?
 That tickles! Hee hee!
 Good morning, sleepyhead!
@@ -7,6 +8,7 @@ Time to brush your teeth!
 Good night. See you in my dreams.
 Someone's at the door!
 It's raining outside. Grab a raincoat.
+[eyes] Hmm, let me think about that...
 # your own recordings work too:
 # ~/recordings/grandma_says_hi.wav
 # [music] ~/music/birthday_song.mp3
