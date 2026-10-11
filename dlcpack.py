@@ -16,7 +16,7 @@ Format notes (little-endian throughout):
                   entry = u16: <0x1000 AMF track index, 0x1xxx pause, 0xF000 end of list
 
 The 60 phrase slots below are the input-75 actions of the base DLC tu003410.dlc
-(SHA-256 pinned in furbyfi.py), mapped once from its XLS/SEQ tables:
+(SHA-256 pinned in fluffkit.py), mapped once from its XLS/SEQ tables:
 (action code, playlist index, first audio track).
 """
 from __future__ import annotations

@@ -1,5 +1,5 @@
-# Yksi fraasi per rivi. Rivi voi olla teksti (TTS) tai polku .wav/.mp3/.a18-tiedostoon.
-# Fraasi N soi komennolla:  python3 furbyfi.py say N
+# One item per line: text (spoken with TTS) or a path to an audio file.
+# Item N plays with:  python3 fluffkit.py say N
 Hei! Minä olen Furby. Leikitäänkö?
 Kutittaa! Hihihi!
 Hyvää huomenta, unikeko!

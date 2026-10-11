@@ -1,8 +1,10 @@
-# furby-fi
+# fluffkit
 
-**Make a Furby Connect (2016) speak your own words, in its own voice, from Linux or macOS. No Windows, no proprietary DLL.**
+**Put your own sounds into a Furby Connect (2016), played through its own speaker, from Linux or macOS. No Windows, no proprietary DLL.**
 
-Text → speech (OpenAI / Piper / espeak-ng) → GeneralPlus A1800 (`.a18`) → DLC phrase pack → Bluetooth upload → trigger any phrase instantly over BLE. Built for Finnish (*fi*), works with any language.
+Phrases in any language (OpenAI / Piper / espeak-ng TTS), your own recordings, songs, sound effects → GeneralPlus A1800 (`.a18`) → DLC pack → Bluetooth upload → trigger any item instantly over BLE.
+
+It started as "make my kids' Furby speak Finnish" and ended up as a general custom-content toolkit.
 
 > ⚠️ **Untested on real hardware.** The author is still waiting for his Furby to arrive. 🐣
 > Everything below has been verified against data (see [What has been verified](#what-has-been-verified)), but nobody has heard it come out of an actual Furby yet. If you try it, please open an issue and tell us what happened.
@@ -22,7 +24,7 @@ This repo:
    | **this fork** | **0.961** | **11.1 dB** | **0.97** |
 
    Gain indices and frame parameters are identical to the DLL's in ~95% of frames.
-2. **Builds phrase packs** with a small, self-contained DLC writer (`dlcpack.py`). It puts up to 60 phrases into the input-75 actions of the stock `tu003410.dlc`, the same route Context IS used in 2017 to play custom audio on a real Furby.
+2. **Builds custom packs** with a small, self-contained DLC writer (`dlcpack.py`). It puts up to 60 items (phrases, recordings, music) into the input-75 actions of the stock `tu003410.dlc`, the same route Context IS used in 2017 to play custom audio on a real Furby.
 3. **Uploads and triggers** them with [PyFluff](https://github.com/martinwoodward/PyFluff) over BLE.
 
 ## What has been verified
@@ -43,7 +45,7 @@ This repo:
 Requirements: Python 3.11+, `ffmpeg`, Rust (to build the codec), plus `bleak` and PyFluff for BLE.
 
 ```bash
-git clone https://github.com/<you>/furby-fi && cd furby-fi
+git clone https://github.com/<you>/fluffkit && cd fluffkit
 (cd a1800 && cargo build --release)              # or grab a binary from Releases into ./bin/
 git clone https://github.com/martinwoodward/PyFluff ../PyFluff
 python3 -m venv .venv && .venv/bin/pip install -e ../PyFluff
@@ -55,20 +57,22 @@ python3 -m venv .venv && .venv/bin/pip install -e ../PyFluff
 
 ```bash
 export OPENAI_API_KEY=sk-...
-python3 furbyfi.py pack fraasit.txt -o pack.dlc --pitch 3   # one phrase per line: text or a .wav/.mp3/.a18 path
-python3 furbyfi.py check pack.dlc --export listen/          # decode back to WAV and listen first
-.venv/bin/python furbyfi.py upload pack.dlc                 # ~1.5–2 min over BLE
-.venv/bin/python furbyfi.py say 1                           # or: say "hello"
+python3 fluffkit.py pack examples/english.txt -o pack.dlc --pitch 3   # one item per line: text or an audio file
+python3 fluffkit.py check pack.dlc --export listen/                    # decode back to WAV and listen first
+.venv/bin/python fluffkit.py upload pack.dlc                           # ~1.5–2 min over BLE
+.venv/bin/python fluffkit.py say 1                                     # or: say "tickles"
 ```
 
+- A line is either text (spoken with TTS, in whatever language it is written in) or a path to a `.wav/.mp3/.flac/.ogg/.m4a/.a18` file. Prefix `[music]` or `[sfx]` to keep dynamics and skip the pitch shift.
 - `--engine openai|piper|espeak`, `--voice`, `--instructions`.
 - `--pitch N` raises the voice by N semitones without changing the tempo.
+- Examples: [`examples/english.txt`](examples/english.txt), [`examples/finnish.txt`](examples/finnish.txt).
 - Other commands: `encode` / `decode` single files, `slots`.
 - The base DLC is downloaded on first use from [ctxis/Furby](https://github.com/ctxis/Furby) and checked against a SHA-256 hash. No Hasbro files are included in this repo.
 
 ## Limits and ideas
 
-- Each pack holds at most 60 phrases.
+- Each pack holds at most 60 items. Long audio is fine, but the upload time grows with it.
 - Uploads run at ~4 kB/s. That figure comes from the 20 B / 5 ms pacing PyFluff and bluefluff use, not from a measured Furby limit, so it may be possible to go faster.
 - New sentences need a re-upload. For live LLM replies, play them through an external speaker and trigger silent "talking" actions so Furby moves its beak and eyes in time.
 - The mouth (LPS) still follows the original track's pattern.

@@ -115,7 +115,7 @@ impl EncoderState {
             &mut scratch,
         );
 
-        // FIX (furby-fi): the subband samples were scaled by the *analysis*
+        // FIX (fluffkit): the subband samples were scaled by the *analysis*
         // scale_param, so quantisation must use it too. Using decoder_sp here
         // mis-scaled the quantiser (output ~1.37x too loud, SNR 6 dB vs 11 dB
         // for the original A1800.DLL on the same input). With this fix the
@@ -137,7 +137,7 @@ impl EncoderState {
 
         let base_alloc = alloc;
         let mut frame_param = select_frame_param(&alloc, &scratch, ns, remaining_bits);
-        // FIX (furby-fi): choose frame_param from *actual* Huffman bit counts
+        // FIX (fluffkit): choose frame_param from *actual* Huffman bit counts
         // (as the DLL does) instead of the BIT_ALLOC_COST estimate, so frames
         // are never truncated by the bitstream writer.
         if rc_mode != "estimate" {
