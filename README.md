@@ -73,6 +73,8 @@ Speech is high-passed and normalised for Furby's tiny speaker. `--pitch 3` raise
 | `check pack.dlc [--export DIR]` | verify the pack and decode every item back to WAV |
 | `upload pack.dlc [--slot 2] [--address MAC]` | delete the slot, upload, load and activate |
 | `say N` / `say "text"` | play item N, or the first item whose text matches |
+| `say 3 7 "night"` | chain several items in one connection |
+| `say -` | keep the connection open and read items from stdin, one per line (`a \| b` chains); use this for instant playback from scripts, home automation or an LLM |
 | `encode IN -o OUT.a18 [--gp-header]` | any audio file to Furby A18 (`--gp-header` writes the A1800.DLL-style file header) |
 | `decode IN.a18 -o OUT.wav` | A18 to WAV (DLL-made files work too) |
 | `tts "text" -o out.wav` | just the text-to-speech step |
@@ -100,7 +102,7 @@ fluffkit reuses that mechanism:
 1. **Audio:** each item is turned into 16 kHz mono and encoded with GeneralPlus **A1800** at 16 kbps (40-byte frames, 20 ms each), the format of every stock Furby track.
 2. **Pack:** `dlcpack.py` takes the stock English DLC `tu003410.dlc`. It shrinks its 146 original tracks to 128-byte stubs, the same trick Context IS used in 2017. Each of the 60 input-75 playlists then points to one of your items. The other sections (eye graphics, motor and lip sequences) are left untouched, so every item still comes with its original eye animation, beak and body movement.
 3. **Upload:** PyFluff announces the file with `0x50`, streams it in 20-byte BLE packets, then loads (`0x60`) and activates (`0x61`) it.
-4. **Play:** `say N` sends one action command, and Furby starts immediately.
+4. **Play:** one 6-byte action command (`13 00 4B 00 y z`) starts an item at once. A one-shot `say N` first opens a Bluetooth connection, which takes a few seconds. `say -` keeps the connection open, so playback starts within milliseconds.
 
 The base DLC is downloaded on first use from [ctxis/Furby](https://github.com/ctxis/Furby) and checked against a SHA-256 hash. **No Hasbro files are included in this repository.**
 
@@ -135,7 +137,7 @@ What has been checked without a Furby:
 - **Codec unit tests:** all 52 pass.
 - **Not verified:** playback on a real Furby. Help wanted!
 
-Run the checks yourself with `python3 -m unittest discover -s tests -v`. CI runs them on every push, including the real-DLC tests. The full format write-up is in [FORMAT.md](FORMAT.md), where every claim is labelled verified, observed or hypothesis.
+Run the checks yourself with `python3 -m unittest discover -s tests -v`. The BLE tests drive the real PyFluff code against a simulated Furby (`tests/fakeble`), checking the upload bytes, the command order and the action packets. CI runs them on every push, including the real-DLC tests. The full format write-up is in [FORMAT.md](FORMAT.md), where every claim is labelled verified, observed or hypothesis.
 
 ## Troubleshooting
 

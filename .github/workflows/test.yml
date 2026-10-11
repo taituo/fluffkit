@@ -15,5 +15,11 @@ jobs:
           mkdir -p ~/.cache/fluffkit
           curl -sSfL https://raw.githubusercontent.com/ctxis/Furby/master/dlc/dlc2/tu003410.dlc -o ~/.cache/fluffkit/tu003410.dlc
           echo "efe11a82a7f837ebd8ab7a76e5873e0be4a0aa23ccedc73cb9c4601139c8e203  $HOME/.cache/fluffkit/tu003410.dlc" | sha256sum -c
+      - name: PyFluff for the BLE tests (simulated Furby, no Bluetooth needed)
+        run: |
+          git clone --depth 1 https://github.com/martinwoodward/PyFluff ../PyFluff
+          pip install pydantic
       - name: python tests
         run: python -m unittest discover -s tests -v
+        env:
+          PYFLUFF_PATH: ${{ github.workspace }}/../PyFluff

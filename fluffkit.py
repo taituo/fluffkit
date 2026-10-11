@@ -13,7 +13,7 @@ Commands:
   pack    pack.txt -o pack.dlc          build a pack (one item per line: text or audio file)
   check   pack.dlc [--export dir]       verify a pack, decode its tracks to WAV
   upload  pack.dlc                      upload (delete -> upload -> load -> activate)
-  say     3 | "hello"                   play an item by number or by text match
+  say     3 | 3 7 "night" | -          play item(s); "-" keeps the connection open and reads stdin
   slots                                 list the 60 slots (75/x/y/z)
 
 Needs: python 3.11+, ffmpeg, a1800_codec (Releases, or: cd a1800 && cargo build --release);
@@ -314,7 +314,11 @@ def cmd_upload(args) -> None:
             await m.delete_dlc(args.slot)
             await asyncio.sleep(2)
             print("uploading... (Furby debug screen: 1 = receiving, 2 = done, 3 = active)")
-            await m.upload_dlc(Path(args.dlc), slot=args.slot, timeout=args.timeout)
+            # announce the stock file name: the proven route (Context IS, furpy3) kept it
+            with tempfile.TemporaryDirectory() as td:
+                up = Path(td) / args.name
+                shutil.copyfile(args.dlc, up)
+                await m.upload_dlc(up, slot=args.slot, timeout=args.timeout)
             await m.load_dlc(args.slot)
             await asyncio.sleep(1)
             await m.activate_dlc()
@@ -325,25 +329,53 @@ def cmd_upload(args) -> None:
     asyncio.run(go())
 
 
+def _resolve(mapping: dict, key: str) -> str:
+    key = key.strip()
+    if key in mapping:
+        return key
+    hits = [k for k, m in mapping.items() if key.lower() in m["text"].lower()]
+    if not hits:
+        raise KeyError(key)
+    return hits[0]
+
+
 def cmd_say(args) -> None:
+    """say 3 | say 3 7 "good night" (chained, one connection) | say - (keep connection, read items from stdin)."""
     import asyncio
     mapping = json.loads(Path(args.map).read_text(encoding="utf-8"))
-    key = args.what
-    if key not in mapping:
-        hits = [k for k, m in mapping.items() if key.lower() in m["text"].lower()]
-        if not hits:
-            die(f"no such item: {key}")
-        key = hits[0]
-    c = mapping[key]["action"]
+    interactive = args.what == ["-"]
+    if not interactive:
+        try:
+            keys = [_resolve(mapping, w) for w in args.what]
+        except KeyError as e:
+            die(f"no such item: {e.args[0]}")
+
+    async def play(f, key):
+        m = mapping[key]
+        print(f"{key}: {'/'.join(map(str, m['action']))}  {m['text']}", flush=True)
+        await f.trigger_action(*m["action"])
+        await asyncio.sleep(m["seconds"] + args.gap)
 
     async def go():
         f = await _connected(args.address)
         try:
-            await f.trigger_action(*c)
-            await asyncio.sleep(mapping[key]["seconds"] + 0.5)
+            if not interactive:
+                for k in keys:
+                    await play(f, k)
+                return
+            print("connected. type an item number or text per line (several separated by ' | '), Ctrl-D to quit",
+                  file=sys.stderr, flush=True)
+            while True:
+                line = await asyncio.to_thread(sys.stdin.readline)
+                if not line:
+                    break
+                for part in filter(None, (x.strip() for x in line.split("|"))):
+                    try:
+                        await play(f, _resolve(mapping, part))
+                    except KeyError:
+                        print(f"no such item: {part}", file=sys.stderr, flush=True)
         finally:
             await f.disconnect()
-    print(f"{key}: {'/'.join(map(str, c))}  {mapping[key]['text']}")
     asyncio.run(go())
 
 
@@ -373,7 +405,9 @@ def main() -> None:
     p = sub.add_parser("slots")
     p = sub.add_parser("upload"); p.add_argument("dlc"); p.add_argument("--slot", type=int, default=2)
     p.add_argument("--address"); p.add_argument("--timeout", type=float, default=900)
-    p = sub.add_parser("say"); p.add_argument("what"); p.add_argument("--map", default="pack.json")
+    p.add_argument("--name", default="TU003410.DLC", help="file name announced to Furby (max 12 chars)")
+    p = sub.add_parser("say"); p.add_argument("what", nargs="+", help="item number(s) or text; '-' = keep connection, read stdin")
+    p.add_argument("--map", default="pack.json"); p.add_argument("--gap", type=float, default=0.15, help="pause between chained items (s)")
     p.add_argument("--address")
     a = ap.parse_args()
 
