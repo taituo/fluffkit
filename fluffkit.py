@@ -14,6 +14,7 @@ Commands:
   check   pack.dlc [--export dir]       verify a pack, decode its tracks to WAV (+ eyes.gif)
   eyes    frames... -o eyes.gif         preview an eye animation in Furby's colours
   amf     Base.AMF [-o dir] [--wav]     list/extract Furby's own firmware voice clips (A1800)
+  esphome pack.json --mac AA:BB:..      ESPHome config: ESP32 bridge, a Home Assistant button per item
   upload  pack.dlc                      upload (delete -> upload -> load -> activate)
   say     3 | 3 7 "night" | -          play item(s); "-" keeps the connection open and reads stdin
   slots                                 list the 60 slots (75/x/y/z)
@@ -345,6 +346,18 @@ def cmd_amf(args) -> None:
     print(f"wrote {len(picked)} clips to {out}")
 
 
+def cmd_esphome(args) -> None:
+    """ESPHome config: ESP32 as a BLE bridge, one Home Assistant button per pack item."""
+    import esphome_gen
+    try:
+        yaml = esphome_gen.from_map_file(args.map, args.mac, args.name, args.board)
+    except ValueError as e:
+        die(str(e))
+    Path(args.output).write_text(yaml, encoding="utf-8")
+    print(f"{args.output}: ESPHome config for {args.mac}. Add wifi_ssid / wifi_password to secrets.yaml, "
+          f"then: esphome run {args.output}")
+
+
 def cmd_eyes(args) -> None:
     """Preview an eye animation exactly as it would be packed (quantised to Furby's palette)."""
     import eyes
@@ -486,6 +499,10 @@ def main() -> None:
     p.add_argument("--no-mirror", action="store_true", help="right eye = left eye, not mirrored")
     p.add_argument("--eye-frames", type=int, default=8, help="max distinct frames per eye (size vs smoothness)")
     p = sub.add_parser("check"); p.add_argument("dlc"); p.add_argument("--export")
+    p = sub.add_parser("esphome", help="ESPHome config: ESP32 BLE bridge + Home Assistant buttons")
+    p.add_argument("map", nargs="?", default="pack.json"); p.add_argument("--mac", required=True)
+    p.add_argument("-o", "--output", default="furby.yaml"); p.add_argument("--name", default="furby")
+    p.add_argument("--board", default="esp32-s3-devkitc-1")
     p = sub.add_parser("amf", help="list/extract firmware .AMF audio clips (A1800)")
     p.add_argument("amf"); p.add_argument("-o", "--out"); p.add_argument("--wav", action="store_true")
     p.add_argument("--limit", type=int, default=0)
@@ -514,7 +531,7 @@ def main() -> None:
     elif a.cmd == "decode":
         decode_body(read_a18_body(Path(a.input)), Path(a.output))
     else:
-        {"pack": cmd_pack, "check": cmd_check, "slots": cmd_slots, "eyes": cmd_eyes, "amf": cmd_amf,
+        {"pack": cmd_pack, "check": cmd_check, "slots": cmd_slots, "eyes": cmd_eyes, "amf": cmd_amf, "esphome": cmd_esphome,
          "upload": cmd_upload, "say": cmd_say}[a.cmd](a)
 
 

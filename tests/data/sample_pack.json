@@ -1,0 +1,5 @@
+{
+  "1": {"text": "Hei! Leikitäänkö?", "action": [75, 0, 0, 0], "apl": 16, "amf": 132, "seconds": 2.1, "eyes": false},
+  "2": {"text": "Hyvää yötä \"pikku\" ystävä", "action": [75, 0, 0, 1], "apl": 17, "amf": 38, "seconds": 2.4, "eyes": false},
+  "3": {"text": "[eyes] Hetkinen, mä mietin...", "action": [75, 0, 4, 7], "apl": 13, "amf": 143, "seconds": 2.6, "eyes": true}
+}

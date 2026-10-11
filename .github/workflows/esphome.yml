@@ -1,0 +1,19 @@
+name: esphome
+on:
+  push:
+    paths: ["esphome_gen.py", "fluffkit.py", "tests/data/sample_pack.json", ".github/workflows/esphome.yml"]
+  workflow_dispatch:
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install esphome
+      - name: generate config from a sample pack map
+        run: |
+          python fluffkit.py esphome tests/data/sample_pack.json --mac A1:B2:C3:D4:E5:F6 -o furby.yaml
+          printf 'wifi_ssid: "ci"\nwifi_password: "ci-password"\n' > secrets.yaml
+      - run: esphome config furby.yaml
+      - run: esphome compile furby.yaml

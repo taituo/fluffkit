@@ -101,12 +101,34 @@ fluffkit.py amf Base.AMF -o clips/ --wav      # decode them all to WAV
 
 Use the extracted `.a18` clips in your own packs, for example to mix Furby's real giggles into new phrases. The firmware files are Hasbro's, so dump them from your own Furby. None are included here.
 
-## Home automation (MQTT)
+## Home automation (ESPHome / MQTT)
 
-After a pack is uploaded, playing item N is a single 6-byte GeneralPlus command: `13 00 4B 00 y z`, where `75/0/y/z` is the item's action from `pack.json`. That makes Furby easy to drive from Home Assistant:
+An ESP32 can act as Furby's permanent Bluetooth companion, so Home Assistant plays your pack without a computer. Furby itself stays untouched.
 
-- **From a computer:** `fluffkit.py say -` reads item numbers on stdin and keeps the Bluetooth connection open.
-- **Without a computer:** [CrazyRobMiles/FurbyESP32](https://github.com/CrazyRobMiles/FurbyESP32) (`MQTTFurby`) bridges MQTT to Furby on an ESP32. It writes the raw bytes it receives on topic `furbyIn` to Furby, so publishing `13 00 4B 00 y z` there plays the item. Upload the pack once from a computer, then let the ESP32 trigger the items.
+```bash
+fluffkit.py esphome pack.json --mac AA:BB:CC:DD:EE:FF -o furby.yaml
+esphome run furby.yaml          # needs wifi_ssid / wifi_password in secrets.yaml
+```
+
+The generated config gives you:
+
+- **One Home Assistant button per pack item**, named by its text (*"Say 3: Hyvää yötä"*).
+- **Actions:**
+  - `say` (`item: 3`) plays a pack item.
+  - `action` (`inp idx sub spec`) runs any Furby action, including the firmware's own reactions.
+  - `antenna` (`r g b`) sets the antenna colour.
+  - `send_hex` sends raw GeneralPlus bytes.
+- **Sensors:**
+  - `Connected`
+  - `Event` (`sequence_playing`, `sequence_ended`, `sleep_mask_on`, …)
+  - `Sensor data` (the raw `0x21` status; switch it on with *Sensor stream on*)
+- **A *Hold in app mode* switch** sends the 3-second keepalive, so Furby stays quiet and waits for commands. Switch it off to let Furby be Furby.
+
+Packs are still uploaded from a computer (`fluffkit.py upload`), which is rare. Regenerate the config after each new pack. CI validates the generated config and compiles it with ESPHome for an ESP32-S3 on every change. It has not been run on hardware yet.
+
+Two alternatives:
+- `fluffkit.py say -` reads item numbers on stdin and keeps the Bluetooth connection open, for scripts on a computer.
+- [CrazyRobMiles/FurbyESP32](https://github.com/CrazyRobMiles/FurbyESP32) (`MQTTFurby`) is an Arduino MQTT bridge. Publish `13 00 4B 00 y z` to `furbyIn` to play item `75/0/y/z`.
 
 ## Commands
 
@@ -116,6 +138,7 @@ After a pack is uploaded, playing item N is a single 6-byte GeneralPlus command:
 | `check pack.dlc [--export DIR]` | verify the pack and decode every item back to WAV (plus `eyes.gif` if the pack has eyes) |
 | `eyes FRAMES... -o eyes.gif` | preview an eye animation exactly as it will be packed |
 | `amf FILE.AMF [-o DIR] [--wav]` | list or extract Furby's own firmware voice clips |
+| `esphome pack.json --mac MAC` | ESPHome config: an ESP32 bridge with a Home Assistant button per item |
 | `upload pack.dlc [--slot 2] [--address MAC]` | delete the slot, upload, load and activate |
 | `say N` / `say "text"` | play item N, or the first item whose text matches |
 | `say 3 7 "night"` | chain several items in one connection |
