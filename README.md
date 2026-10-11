@@ -22,7 +22,7 @@ It started as "make my kids' Furby speak Finnish" and grew into a general custom
 - [Quick start](#quick-start)
 - [Pack files](#pack-files)
 - [Commands](#commands)
-- [Install](#install) ([Steam Deck](#steam-deck), [macOS](#macos))
+- [Install](#install)
 - [How it works](#how-it-works)
 - [The A1800 encoder fix](#the-a1800-encoder-fix)
 - [Verification](#verification)
@@ -88,27 +88,7 @@ You need Python 3.11+, `ffmpeg`, Rust (only to build the codec) and Bluetooth LE
 
 The codec builds with `cd a1800 && cargo build --release`. Prebuilt binaries for Linux x86-64 and macOS arm64 are attached to [Releases](../../releases); put one in `./bin/a1800_codec`, or point the `A1800_CODEC` environment variable at it.
 
-### Steam Deck
-
-Use Desktop mode and Konsole. The root filesystem is read-only, so keep everything in your home directory:
-
-```bash
-# ffmpeg: static build
-mkdir -p ~/.local/bin && cd /tmp
-curl -LO https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-tar xf ffmpeg-release-amd64-static.tar.xz && cp ffmpeg-*-static/ffmpeg ~/.local/bin/
-# codec: Releases binary into fluffkit/bin/, or install rustup into your home directory and build
-```
-
-The Deck's built-in Bluetooth (BlueZ) works with `bleak`. Alternatively, run everything inside `distrobox`.
-
-### macOS
-
-```bash
-brew install ffmpeg rust
-```
-
-CoreBluetooth works with `bleak`, but macOS shows a UUID instead of the MAC address, so use `--address` with the UUID or let PyFluff scan.
+Any Linux or macOS machine with Bluetooth LE works.
 
 ## How it works
 
