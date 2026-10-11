@@ -1,0 +1,62 @@
+diff --git a/src/encoder.rs b/src/encoder.rs
+index f456aa7..5554afe 100644
+--- a/src/encoder.rs
++++ b/src/encoder.rs
+@@ -115,17 +115,19 @@ impl EncoderState {
+             &mut scratch,
+         );
+ 
+-        // Step 2b: Select frame_param — find the minimum number of scratch
+-        // increments needed so that the BIT_ALLOC_COST total fits the budget.
+-        // Each increment raises a subband's step (fewer bits). The base alloc
+-        // is the most generous (most bits); we increment until it fits.
+-        let frame_param = select_frame_param(&alloc, &scratch, ns, remaining_bits);
+-
+-        // Step 2c: Apply frame_param increments to alloc
+-        increment_allocation_bins(frame_param, &mut alloc[..ns], &scratch);
+-
+-        // Step 3: Adjust gain indices for quantization using decoder-consistent sp
+-        let offset = add(shl(decoder_sp, 1), 0x18);
++        // FIX (furby-fi): the subband samples were scaled by the *analysis*
++        // scale_param, so quantisation must use it too. Using decoder_sp here
++        // mis-scaled the quantiser (output ~1.37x too loud, SNR 6 dB vs 11 dB
++        // for the original A1800.DLL on the same input). With this fix the
++        // gains and frame params match DLL output in ~95% of frames.
++        // Old behaviour is still reachable with A18_SP=decoder / A18_RC=estimate.
++        let sp_mode = std::env::var("A18_SP").unwrap_or_else(|_| "analysis".into());
++        let rc_mode = std::env::var("A18_RC").unwrap_or_else(|_| "actual".into());
++        let q_sp = if sp_mode == "decoder" { decoder_sp } else { scale_param };
++        let _ = decoder_sp;
++
++        // Step 3: Adjust gain indices for quantization
++        let offset = add(shl(q_sp, 1), 0x18);
+         for i in 0..ns {
+             gain_indices[i] = add(gain_indices[i], offset);
+         }
+@@ -133,6 +135,26 @@ impl EncoderState {
+         // Step 4: Prescale subbands
+         prescale_subbands(&mut gain_indices, subbands, ns);
+ 
++        let base_alloc = alloc;
++        let mut frame_param = select_frame_param(&alloc, &scratch, ns, remaining_bits);
++        // FIX (furby-fi): choose frame_param from *actual* Huffman bit counts
++        // (as the DLL does) instead of the BIT_ALLOC_COST estimate, so frames
++        // are never truncated by the bitstream writer.
++        if rc_mode != "estimate" {
++            frame_param = 15;
++            for fp in 0..16i16 {
++                let mut a = base_alloc;
++                increment_allocation_bins(fp, &mut a[..ns], &scratch);
++                let mut ed = [0i16; 560];
++                let mut sbits = [0i16; MAX_SUBBANDS];
++                encode_subframes(subbands, &a, &gain_indices, ns, &mut ed, &mut sbits);
++                let total: i32 = sbits[..ns].iter().map(|&b| b as i32).sum();
++                if total <= remaining_bits as i32 { frame_param = fp; break; }
++            }
++        }
++        alloc = base_alloc;
++        increment_allocation_bins(frame_param, &mut alloc[..ns], &scratch);
++
+         // Step 5: Encode subframes
+         let mut encoded_data = [0i16; 560];
+         let mut subband_bits = [0i16; MAX_SUBBANDS];

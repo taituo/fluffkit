@@ -1,0 +1,18 @@
+# Yksi fraasi per rivi. Rivi voi olla teksti (TTS) tai polku .wav/.mp3/.a18-tiedostoon.
+# Fraasi N soi komennolla:  python3 furbyfi.py say N
+Hei! Minä olen Furby. Leikitäänkö?
+Kutittaa! Hihihi!
+Hyvää huomenta, unikeko!
+Nyt on iltapalan aika.
+Hampaat pitää pestä. Harja käteen!
+Hyvää yötä. Nähdään unessa.
+Valot sammuu! Pimeää!
+Valot päälle!
+Ovikello soi! Kuka siellä?
+Ulkona sataa. Ota sadetakki.
+Mä oon nälkäinen!
+Halaus? Ihana!
+Ei saa! Ei saa!
+Jee! Hienoa!
+Mä kuuntelen.
+Hetkinen, mä mietin...

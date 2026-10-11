@@ -1,0 +1,9 @@
+target/
+bin/
+__pycache__/
+*.dlc
+*.a18
+*.json
+listen/
+kuuntele/
+.venv/

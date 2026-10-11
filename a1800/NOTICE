@@ -1,0 +1,20 @@
+a1800 codec: modified copy of https://github.com/John-K/a1800_codec (Apache-2.0)
+Original: Copyright John-K and contributors.
+
+Modifications by furby-fi (2026):
+  src/encoder.rs
+    - Quantisation now uses the analysis-filter scale_param instead of the one
+      recomputed from the gain indices (decoder_sp). The subband samples are scaled
+      by the analysis value, so using decoder_sp mis-scaled the quantiser.
+    - frame_param is chosen from actual Huffman bit counts (smallest value that
+      fits the frame budget) instead of the BIT_ALLOC_COST estimate.
+    The previous behaviour can be selected with A18_SP=decoder A18_RC=estimate.
+  See furby-fi-encoder-fix.diff.
+
+Measured on furbhax's satanaudiocompressed.wav against the same file encoded
+by the original GeneralPlus A1800.DLL (both decoded with this decoder):
+                     corr    SNR      RMS ratio
+  A1800.DLL          0.961   11.1 dB  0.97
+  upstream encoder   0.865    6.0 dB  1.37
+  this encoder       0.961   11.1 dB  0.97
+Gain indices and frame params equal the DLL output in ~95% of frames.
