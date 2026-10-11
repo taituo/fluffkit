@@ -36,7 +36,7 @@ It started as "make my kids' Furby speak Finnish" and grew into a general custom
 
 ```bash
 git clone https://github.com/taituo/fluffkit && cd fluffkit
-(cd a1800 && cargo build --release)                 # the audio codec (or download it from Releases into ./bin/)
+(cd a1800 && cargo build --release)                 # the audio codec
 git clone https://github.com/martinwoodward/PyFluff ../PyFluff
 python3 -m venv .venv && .venv/bin/pip install -e ../PyFluff
 
@@ -86,7 +86,7 @@ Speech is high-passed and normalised for Furby's tiny speaker. `--pitch 3` raise
 
 You need Python 3.11+, `ffmpeg`, Rust (only to build the codec) and Bluetooth LE. [PyFluff](https://github.com/martinwoodward/PyFluff), which brings in `bleak`, is needed for `upload` and `say`.
 
-The codec builds with `cd a1800 && cargo build --release`. Prebuilt binaries for Linux x86-64 and macOS arm64 are attached to [Releases](../../releases); put one in `./bin/a1800_codec`, or point the `A1800_CODEC` environment variable at it.
+The codec builds with `cd a1800 && cargo build --release`. A prebuilt binary also works: put it in `./bin/a1800_codec` or point the `A1800_CODEC` environment variable at it. Tagged versions (`v*`) build Linux x86-64 and macOS arm64 binaries into [Releases](../../releases) via CI.
 
 Any Linux or macOS machine with Bluetooth LE works.
 
