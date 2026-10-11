@@ -199,6 +199,14 @@ frame lists: u32 word offset of each frame
 
 - The last 4 entries of each personality AMF start with `SP62ALP` and are some other GeneralPlus format (songs?). That format is **not decoded**.
 
+## DLC storage on the NAND [verified from a NAND dump]
+
+A public NAND file dump ([Furby-ReConnect/Furby](https://github.com/Furby-ReConnect/Furby), `Furby-Files/Furby-NAND/Slots/`) shows how uploaded DLCs are stored:
+
+- **14 slot files.** `T2000k_1..2` are 2 MB, `A1000k_1..6` are 1 MB and `A500k_1..6` are 0.5 MB. Each holds the uploaded DLC **byte-for-byte** (FURBY header, sections) followed by padding. Deleted slots keep stale data.
+- **`Slots.STB`.** 14 entries × 98 bytes: `u32 index`, `u16 size class` (0x20/0x10/0x08 = 2M/1M/0.5M), the UTF-16 path `A:\Slots\…SLT`, the UTF-16 DLC name, then `u32 size` and status words. In the dump only one slot is registered: `A1000k_6` → `TU010160.DLC`, 912,608 bytes, status words `02 00 00 00 00 00 02 00 01 00`.
+- **Activation copies the DLC's audio to a fixed file.** `Downloads/TOY.AMF` is byte-identical to the AMF section of the registered DLC. Because there is a single `TOY.AMF`, **only one DLC's audio can be active at a time**.
+
 ## Upload over BLE [ctxis]
 
 1. `0x50 0x00 <size u24 BE> <slot> <name 12 B> 00 00` on the GeneralPlus characteristic. Furby replies `24 02` when it is ready to receive.
@@ -216,4 +224,5 @@ The debug screen shows one number per slot: 0 empty, 1 receiving or failed, 2 up
 - [ ] MTR opcodes and cam position mapping (plan: test packs + video)
 - [ ] The header counter field and the SEQ type word
 - [ ] Maximum upload rate before Furby drops packets
+- [x] One active DLC at a time: activation copies its AMF to `Downloads/TOY.AMF` (see DLC storage)
 - [ ] Eye frame timing (38-frame playlist duration) and whether more than one custom animation per pack is possible

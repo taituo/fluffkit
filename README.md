@@ -101,6 +101,13 @@ fluffkit.py amf Base.AMF -o clips/ --wav      # decode them all to WAV
 
 Use the extracted `.a18` clips in your own packs, for example to mix Furby's real giggles into new phrases. The firmware files are Hasbro's, so dump them from your own Furby. None are included here.
 
+## Home automation (MQTT)
+
+After a pack is uploaded, playing item N is a single 6-byte GeneralPlus command: `13 00 4B 00 y z`, where `75/0/y/z` is the item's action from `pack.json`. That makes Furby easy to drive from Home Assistant:
+
+- **From a computer:** `fluffkit.py say -` reads item numbers on stdin and keeps the Bluetooth connection open.
+- **Without a computer:** [CrazyRobMiles/FurbyESP32](https://github.com/CrazyRobMiles/FurbyESP32) (`MQTTFurby`) bridges MQTT to Furby on an ESP32. It writes the raw bytes it receives on topic `furbyIn` to Furby, so publishing `13 00 4B 00 y z` there plays the item. Upload the pack once from a computer, then let the ESP32 trigger the items.
+
 ## Commands
 
 | command | what it does |
