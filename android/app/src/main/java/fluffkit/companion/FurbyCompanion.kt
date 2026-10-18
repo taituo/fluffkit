@@ -349,8 +349,8 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     companion object {
         val TAG = Regex("\\[(liike|nauru|nukkumaan|herää|tanssi|korvat|pieru|röyhtäys|hikka|furbylaulu|beatbox|vilkku|valo:[^\\]]*|efekti:[^\\]]*)\\]",
             RegexOption.IGNORE_CASE)
-        val WAKE_WORDS = Regex("(?U)\\b(urho|her[äa]+\\w*|herätys|huomen\\w*|aamu\\w*|nouse|wake|hei|tää|jaa|no|nyt|jo)\\b", RegexOption.IGNORE_CASE)
-        val WAKE_RE = Regex("(?U)\\b(urho|her[äa]{1,2}|herätys|huomen|huomenta|aamu|nouse|wake)", RegexOption.IGNORE_CASE)
+        val WAKE_WORDS = Regex("\\b(urho|her[äa]+\\w*|herätys|huomen\\w*|aamu\\w*|nouse|wake|hei|tää|jaa|no|nyt|jo)\\b", RegexOption.IGNORE_CASE)
+        val WAKE_RE = Regex("\\b(urho|her[äa]{1,2}|herätys|huomen|huomenta|aamu|nouse|wake)", RegexOption.IGNORE_CASE)
 
         private fun codes(vararg c: Int) = c
         private fun range(a: Int, b: Int, c: Int, from: Int, to: Int) = (from..to).map { intArrayOf(a, b, c, it) }
@@ -390,7 +390,7 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
 
         /** What the mic heard, minus [sound event] tags; null when nothing worth answering is left. */
         fun cleanHeard(raw: String?): String? {
-            val s = (raw ?: "").replace(Regex("\\[[^\\]]*]|\\([^)]*\\)"), " ").replace(Regex("\\s+"), " ").trim()
+            val s = (raw ?: "").replace(Regex("\\[[^\\]]*\\]|\\([^)]*\\)"), " ").replace(Regex("\\s+"), " ").trim()
             return if (Regex("[a-zåäö]", RegexOption.IGNORE_CASE).findAll(s).count() >= 3) s else null
         }
     }
