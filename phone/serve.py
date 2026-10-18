@@ -17,9 +17,19 @@ HERE = Path(__file__).parent
 PORT = int(os.environ.get("PORT", "8766"))
 sys.path.insert(0, str(HERE))
 from acp import ACPAgent  # noqa: E402
+from brain import Brain  # noqa: E402
 
-# Furby's brain: opencode in ACP mode, model + persona from phone/furby-agent/ (opencode.json, AGENTS.md)
-AGENT = ACPAgent(os.environ.get("FURBY_AGENT_CMD", "opencode acp").split(), HERE / "furby-agent")
+# Furby's brain. Default: an OpenAI-compatible gateway (FURBY_LLM_URL, bearer from FURBY_LLM_BEARER or
+# ~/.config/fluffkit/gateway_bearer), persona from phone/furby-agent/AGENTS.md.
+# FURBY_BRAIN=acp uses `opencode acp` instead (slower: agent prompt + tools in between).
+_bearer_file = Path.home() / ".config" / "fluffkit" / "gateway_bearer"
+if os.environ.get("FURBY_BRAIN", "gateway") == "acp":
+    AGENT = ACPAgent(os.environ.get("FURBY_AGENT_CMD", "opencode acp").split(), HERE / "furby-agent")
+else:
+    AGENT = Brain(os.environ.get("FURBY_LLM_URL", "http://127.0.0.1:8788/v1"),
+                  os.environ.get("FURBY_LLM_BEARER") or (_bearer_file.read_text().strip() if _bearer_file.exists() else ""),
+                  os.environ.get("FURBY_MODEL", "qwen3.6-plus"),
+                  HERE / "furby-agent" / "AGENTS.md")
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
