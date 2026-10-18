@@ -33,8 +33,8 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     private val voiceCache = File(ctx.filesDir, "voice")
 
     @Volatile var cfg: Config = settings.config(); private set
+    @Volatile var packName = ""; private set             // before items: loadItems() sets it
     @Volatile var items: List<Item> = loadItems(); private set
-    @Volatile var packName = ""; private set
 
     // the mic stays shut while this phone plays sound (+400 ms of echo) and while a turn is being answered
     private val playing = AtomicInteger(0)

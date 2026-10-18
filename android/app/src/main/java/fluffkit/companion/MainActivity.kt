@@ -151,8 +151,7 @@ class MainActivity : Activity() {
         sensHead.addView(text("Kuulon herkkyys", 16f, INK, true), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         thrLabel = text("", 13f, MUTED); sensHead.addView(thrLabel)
         sens.addView(sensHead)
-        sens.addView(LevelMeter(this, { c.listener.level }, { c.listener.peak }, { c.threshold }),
-            LinearLayout.LayoutParams(MATCH_PARENT, px(18)).apply { topMargin = px(10) })
+        val meter = LevelMeter(this, { c.listener.level }, { c.listener.peak }, { c.threshold })
         slider = SeekBar(this).apply {
             max = 1000
             progressTintList = ColorStateList.valueOf(PINK); thumbTintList = ColorStateList.valueOf(PINK)
@@ -164,6 +163,9 @@ class MainActivity : Activity() {
                 override fun onStopTrackingTouch(s: SeekBar) { Log.i("kynnys %.4f".format(c.threshold)) }
             })
         }
+        // the meter spans exactly the slider's track, so the knob sits on the threshold mark
+        sens.addView(meter, LinearLayout.LayoutParams(MATCH_PARENT, px(18)).apply {
+            topMargin = px(10); leftMargin = slider.paddingLeft; rightMargin = slider.paddingRight })
         sens.addView(slider, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = px(6) })
         val ends = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         ends.addView(text("herkkä", 12f, MUTED), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))

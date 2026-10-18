@@ -27,7 +27,7 @@
         android:icon="@drawable/ic_furby"
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
-        android:theme="@android:style/Theme.DeviceDefault.DayNight">
+        android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
 
         <activity
             android:name=".MainActivity"
