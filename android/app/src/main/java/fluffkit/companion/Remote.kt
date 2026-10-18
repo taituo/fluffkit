@@ -29,6 +29,7 @@ object Commands {
             "reload" -> c.reload()
             "forget" -> c.brain.reset()
             "rescan" -> c.furby.rescan()
+            "connect" -> c.furby.start()
             "hear" -> c.hear(File(c.settings.dir, text).readBytes())
             else -> return "unknown command: $cmd"
         }
@@ -98,11 +99,27 @@ class Remote(private val c: FurbyCompanion) {
 
         try {
             when {
-                method == "GET" && path == "/state" -> reply(sock, 200, Commands.state(c).toString(), "application/json")
+                method == "GET" && (path == "/state" || path == "/status") -> reply(sock, 200, Commands.state(c).toString(), "application/json")
                 method == "GET" && path == "/log" -> reply(sock, 200, Log.text())
                 method == "POST" && path == "/cmd" -> {
                     val j = JSONObject(String(body))
                     val r = Commands.run(c, j.optString("cmd"), j.optString("text"))
+                    reply(sock, if (r == "ok") 200 else 400, r)
+                }
+                // short forms: POST /say {"text"} · /chat {"text"} · /sleep · /wake · /trick {"name"} ·
+                // /light {"colour"} ("vilkku" = rainbow) · /listen {"on": bool} · /config (reload) · /connect
+                method == "POST" && path in SHORT -> {
+                    val j = if (body.isEmpty()) JSONObject() else JSONObject(String(body))
+                    val r = when (path) {
+                        "/say", "/chat" -> Commands.run(c, path.drop(1), j.optString("text"))
+                        "/sleep", "/wake" -> Commands.run(c, path.drop(1))
+                        "/trick" -> Commands.run(c, "tag", j.optString("name"))
+                        "/light" -> j.optString("colour", j.optString("color")).let {
+                            Commands.run(c, "tag", if (it == "vilkku") "vilkku" else "valo: $it") }
+                        "/listen" -> Commands.run(c, "listen", if (j.optBoolean("on", true)) "on" else "off")
+                        "/config" -> Commands.run(c, "reload")
+                        else -> Commands.run(c, "connect")
+                    }
                     reply(sock, if (r == "ok") 200 else 400, r)
                 }
                 method == "PUT" && path.startsWith("/file/") -> {
@@ -144,5 +161,8 @@ class Remote(private val c: FurbyCompanion) {
         sock.getOutputStream().apply { write(head.toByteArray()); write(body); flush() }
     }
 
-    companion object { const val PORT = 8770 }
+    companion object {
+        const val PORT = 8770
+        val SHORT = setOf("/say", "/chat", "/sleep", "/wake", "/trick", "/light", "/listen", "/config", "/connect")
+    }
 }

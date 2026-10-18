@@ -8,7 +8,7 @@
     python3 android/furby_remote.py sleep | wake | tag tanssi | listen off | state | log
 
 `setup` pushes the keys as secrets.json over adb (the app imports them into EncryptedSharedPreferences and
-deletes the file), with a remote token kept in ~/.config/fluffkit/furby_remote_token, and forwards port 8770.
+deletes the file), with a remote token kept in ~/.config/fluffkit/companion_token, and forwards port 8770.
 Without --host the commands go through that adb forward; --host 192.168.1.156 (or a Tailscale name) goes direct.
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PHONE = HERE.parent / "phone"
 CONF = Path.home() / ".config" / "fluffkit"
-TOKEN_FILE = CONF / "furby_remote_token"
+TOKEN_FILE = CONF / "companion_token"
 PKG = "fluffkit.companion"
 FILES_DIR = f"/sdcard/Android/data/{PKG}/files"
 PORT = 8770

@@ -55,9 +55,16 @@ class Brain(private val settings: Settings) {
             // state and style ride on this turn only; the history keeps the child's own words
             val extra = if (context.isNotEmpty()) "$context " else ""
             msgs.put(JSONObject().put("role", "user").put("content", "$text\n\n$extra${nextStyle()}"))
-            val body = JSONObject().put("model", settings.llmModel).put("stream", true).put("max_tokens", 400).put("messages", msgs)
+            val responses = settings.llmApi == "responses"
+            val body = JSONObject().put("model", settings.llmModel).put("stream", true)
+            if (responses) {
+                // no output cap: with Muse Spark a 400-token cap was eaten by reasoning and no text came back
+                val input = org.json.JSONArray(); for (i in 1 until msgs.length()) input.put(msgs.get(i))
+                body.put("instructions", msgs.getJSONObject(0).getString("content")).put("input", input)
+                if (settings.llmEffort.isNotBlank()) body.put("reasoning", JSONObject().put("effort", settings.llmEffort))
+            } else body.put("max_tokens", 400).put("messages", msgs)
 
-            val c = URL(settings.llmUrl.trimEnd('/') + "/chat/completions").openConnection() as HttpURLConnection
+            val c = URL(settings.llmUrl.trimEnd('/') + if (responses) "/responses" else "/chat/completions").openConnection() as HttpURLConnection
             c.requestMethod = "POST"; c.doOutput = true
             c.connectTimeout = 10_000; c.readTimeout = 60_000
             c.setRequestProperty("Authorization", "Bearer ${settings.llmBearer}")
@@ -73,11 +80,14 @@ class Brain(private val settings: Settings) {
                 for (raw in lines) {
                     val line = raw.trim()
                     if (!line.startsWith("data:") || line.endsWith("[DONE]")) continue
-                    val choices = JSONObject(line.substring(5)).optJSONArray("choices") ?: continue
-                    for (i in 0 until choices.length()) {
-                        val piece = choices.getJSONObject(i).optJSONObject("delta")?.optString("content", "") ?: ""
-                        if (piece.isNotEmpty() && piece != "null") { answer.append(piece); onChunk(piece) }
+                    val d = JSONObject(line.substring(5))
+                    val pieces = if (responses) {
+                        if (d.optString("type") == "response.output_text.delta") listOf(d.optString("delta")) else emptyList()
+                    } else {
+                        val choices = d.optJSONArray("choices")
+                        List(choices?.length() ?: 0) { choices!!.getJSONObject(it).optJSONObject("delta")?.optString("content", "") ?: "" }
                     }
+                    for (piece in pieces) if (piece.isNotEmpty() && piece != "null") { answer.append(piece); onChunk(piece) }
                 }
             }
             history += JSONObject().put("role", "user").put("content", text)

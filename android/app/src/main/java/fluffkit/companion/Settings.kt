@@ -39,8 +39,16 @@ class Settings(private val ctx: Context) {
         get() = secure.getString("llm_bearer", "") ?: ""
         set(v) = secure.edit().putString("llm_bearer", v).apply()
     var llmModel: String
-        get() = secure.getString("llm_model", null) ?: "qwen3.6-plus"
+        get() = secure.getString("llm_model", null) ?: "muse-spark-1.3-contributor"
         set(v) = secure.edit().putString("llm_model", v).apply()
+
+    /** "responses" (reasoning effort reaches the model: Muse Spark at "minimal" ~1.1 s to first words) or "chat". */
+    var llmApi: String
+        get() = secure.getString("llm_api", null) ?: "responses"
+        set(v) = secure.edit().putString("llm_api", v).apply()
+    var llmEffort: String
+        get() = secure.getString("llm_effort", null) ?: "minimal"
+        set(v) = secure.edit().putString("llm_effort", v).apply()
 
     /** Bearer for the remote-control HTTP endpoint (Remote.kt); none = remote off. */
     var remoteToken: String
@@ -69,6 +77,8 @@ class Settings(private val ctx: Context) {
             j.optString("llm_url").takeIf { it.isNotBlank() }?.let { llmUrl = it.trim() }
             j.optString("llm_bearer").takeIf { it.isNotBlank() }?.let { llmBearer = it.trim() }
             j.optString("llm_model").takeIf { it.isNotBlank() }?.let { llmModel = it.trim() }
+            j.optString("llm_api").takeIf { it.isNotBlank() }?.let { llmApi = it.trim() }
+            if (j.has("llm_effort")) llmEffort = j.optString("llm_effort").trim()
             j.optString("remote_token").takeIf { it.isNotBlank() }?.let { remoteToken = it.trim() }
             Log.i("avaimet tuotu tiedostosta secrets.json")
         } catch (e: Exception) {
