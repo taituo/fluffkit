@@ -10,3 +10,4 @@ kuuntele/
 !tests/data/*.json
 sounds/
 out/
+phone/packs.json

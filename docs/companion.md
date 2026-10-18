@@ -76,6 +76,41 @@ New gestures or eyes are a new DLC build plus a 2-minute upload. That can run in
 - `20 06` every 3 s keeps the link alive and Furby awake.
 - `13 00 75 …` replies: `20:0c` SEQUENCE_PLAYING, `20:0e` SEQUENCE_ENDED, `20:0f` INPUT_OUT_OF_RANGE.
 
+## Phone companion (working, 2026-10-18)
+
+`phone/` turns any Android phone with Chrome into the companion. Tested on a reset Poco F1 (Chrome 83).
+
+```
+phone mic ──► ElevenLabs Scribe (scribe_v2, language fin) ──► text
+                                                                │ POST /chat-stream (via adb reverse)
+computer: phone/serve.py ──► opencode acp (phone/furby-agent: Muse Spark, Finnish storyteller, no tools)
+                                                                │ streamed answer, sentence by sentence
+phone speaker ◄── ElevenLabs flash TTS (fi)  +  BLE to Furby: silent beak item for each sentence,
+                                                 body gestures for [liike] / [nauru], sound for [efekti: …]
+```
+
+- Chrome allows Web Bluetooth and the microphone only on https or localhost. `adb reverse tcp:8766 tcp:8766`
+  (over USB, or over Wi-Fi after `adb tcpip 5555`) makes the phone's localhost reach `phone/serve.py`.
+- Hands-free listening starts above an adjustable level and ends after 0.7 s of quiet; it is muted while
+  the phone itself speaks. Push-to-talk works too.
+- Measured per turn: Scribe ~0.6 s, first answer piece ~1.5–2.3 s, flash TTS ~0.2–0.3 s per sentence.
+  A "thinking" gesture and one of 10 prepared Finnish fillers ("Hetkinen…") play the moment speech ends.
+- Pin languages: without `language_code` Scribe heard children as Igbo or Chinese and the TTS read short
+  Finnish lines with a foreign accent. `tag_audio_events=false` stops `[clicking]` from becoming a turn.
+- The ElevenLabs subscription allows 6 concurrent requests; the page queues calls at 4.
+- Old Chrome (83): no `writeValueWithoutResponse`, no `replaceChildren`; the page falls back for both.
+
+Run:
+
+```bash
+ELEVENLABS_API_KEY=… python3 phone/serve.py
+```
+```bash
+adb reverse tcp:8766 tcp:8766
+```
+
+then open http://localhost:8766 in the phone's Chrome, tap "Yhdistä Furbyyn" and pick Furby.
+
 ## Companion hardware: inside the battery box
 
 A child carries the Furby around, so the companion has to travel with it. The battery compartment

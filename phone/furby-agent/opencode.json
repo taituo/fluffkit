@@ -1,0 +1,5 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode-go/muse-spark-1.3-contributor",
+  "permission": { "edit": "deny", "bash": "deny", "webfetch": "deny" }
+}
