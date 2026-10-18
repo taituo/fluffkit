@@ -57,7 +57,7 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     init {
         furby.onSequenceEnded = { seqEnded.forEach { it.complete(Unit) }; seqEnded.clear() }
         furby.onState = { s ->
-            if (s == Furby.State.CONNECTED) scope.launch { antennaNow = ""; delay(500); restingColour() }
+            if (s == Furby.State.CONNECTED) scope.launch { antennaNow = ""; delay(500); restingColour(); ensurePack() }
         }
     }
 
@@ -267,6 +267,20 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     }
 
     @Volatile private var pendingPersona: String? = null
+    private val packLock = Mutex()
+
+    /** Each persona can have its own gesture pack (same action codes, its own eyes): activate its DLC slot when it is
+     *  not the one this app activated last. Only actions and eyes switch at once; the beak items are silent anyway. */
+    suspend fun ensurePack() = packLock.withLock {
+        val want = cfg.persona?.packSlot ?: return@withLock
+        if (!furby.connected || sleeping || want == settings.packSlot) return@withLock
+        Log.i("paketti: aktivoidaan slotti $want (${cfg.persona?.name})")
+        furby.send(0x60, want)
+        delay(2_000)
+        furby.send(0x61)
+        settings.packSlot = want
+        delay(1_000)
+    }
 
     /** Switch persona like tools/persona.py (voice, wake words, prompt), forget the conversation, show the persona's
      *  colour on the antenna, and let the new persona greet the child in its own voice. */
@@ -282,6 +296,7 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         furby.send(byteArrayOf(0x14, android.graphics.Color.red(p.colour).toByte(), android.graphics.Color.green(p.colour).toByte(),
             android.graphics.Color.blue(p.colour).toByte()))
         delay(800)
+        ensurePack()
         prepareSounds()                                     // fillers in the new voice before the greeting
         antennaNow = ""
         chat("(Olet nyt ${p.name}. Esittäydy lapselle lyhyesti omalla kielelläsi.)", hidden = true)   // no style draw

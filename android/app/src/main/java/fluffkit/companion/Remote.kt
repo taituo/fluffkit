@@ -30,6 +30,7 @@ object Commands {
             "reload" -> c.reload()
             "forget" -> c.brain.reset()
             "persona" -> c.switchPersona(text.trim())
+            "pack" -> { c.settings.packSlot = null; c.scope.launch { c.ensurePack() } }   // re-activate the persona's slot
             "rescan" -> c.furby.rescan()
             "connect" -> c.furby.start()
             "hear" -> c.hear(File(c.settings.dir, text).readBytes())
@@ -58,6 +59,7 @@ object Commands {
         .put("persona", c.cfg.personaId ?: "")
         .put("personas", org.json.JSONArray(c.cfg.personas.keys.toList()))
         .put("sensor", c.furby.sensor)
+        .put("pack_slot", c.settings.packSlot ?: JSONObject.NULL)
 }
 
 /**

@@ -62,6 +62,11 @@ class Settings(private val ctx: Context) {
     var furbyAddress: String?
         get() = prefs.getString("furby_addr", null)
         set(v) = prefs.edit().putString("furby_addr", v).apply()
+    /** The DLC slot this app last activated on Furby (60/61); null = unknown. */
+    var packSlot: Int?
+        get() = if (prefs.contains("pack_slot")) prefs.getInt("pack_slot", 0) else null
+        set(v) = prefs.edit().apply { if (v == null) remove("pack_slot") else putInt("pack_slot", v) }.apply()
+
     var pack: Int
         get() = prefs.getInt("pack", 0)
         set(v) = prefs.edit().putInt("pack", v).apply()
@@ -145,7 +150,7 @@ class Settings(private val ctx: Context) {
 
 class Filler(val text: String, val weight: Double, val kind: String)
 
-class Persona(val id: String, val name: String, val wake: List<String>, val voice: JSONObject, val colour: Int)
+class Persona(val id: String, val name: String, val wake: List<String>, val voice: JSONObject, val colour: Int, val packSlot: Int?)
 
 /** furby-config.json, with the same defaults as phone/index.html. */
 class Config(j: JSONObject) {
@@ -158,7 +163,8 @@ class Config(j: JSONObject) {
             val wake = o.optJSONArray("wake")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList()
             val colour = o.optJSONArray("colour")?.let { android.graphics.Color.rgb(it.optInt(0), it.optInt(1), it.optInt(2)) }
                 ?: palette[n % palette.size]
-            put(k, Persona(k, o.optString("name", k), wake, o.optJSONObject("voice") ?: JSONObject(), colour)); n++
+            val slot = if (o.has("pack_slot")) o.getInt("pack_slot") else null
+            put(k, Persona(k, o.optString("name", k), wake, o.optJSONObject("voice") ?: JSONObject(), colour, slot)); n++
         }
     }
     val personaId: String? = j.optString("persona").takeIf { it.isNotBlank() }
