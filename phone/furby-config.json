@@ -1,5 +1,5 @@
 {
-  "persona": "ukko",
+  "persona": "darth",
   "personas": {
     "urho": {
       "name": "Urho",
@@ -45,15 +45,37 @@
         "speed": 0.88,
         "stability": 0.6
       }
+    },
+    "darth": {
+      "name": "Darth Fluff",
+      "wake": [
+        "darth",
+        "dart",
+        "fluff",
+        "vader",
+        "veider"
+      ],
+      "colour": [
+        220,
+        0,
+        0
+      ],
+      "voice": {
+        "id": "nPczCjzI2devNBz1zQrb",
+        "language": "en",
+        "semitones": -4,
+        "speed": 0.82,
+        "stability": 0.7
+      }
     }
   },
   "voice": {
     "id": "nPczCjzI2devNBz1zQrb",
     "model": "eleven_flash_v2_5",
-    "language": "fi",
-    "semitones": -2,
-    "speed": 0.88,
-    "stability": 0.6,
+    "language": "en",
+    "semitones": -4,
+    "speed": 0.82,
+    "stability": 0.7,
     "similarity": 0.85
   },
   "fx": {
