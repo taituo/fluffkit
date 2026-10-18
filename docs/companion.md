@@ -100,8 +100,31 @@ phone speaker ◄── ElevenLabs flash TTS (fi)  +  BLE to Furby: silent beak 
 - The ElevenLabs subscription allows 6 concurrent requests; the page queues calls at 4.
 - Old Chrome (83): no `writeValueWithoutResponse`, no `replaceChildren`; the page falls back for both.
 
+### Brain: an OpenAI-compatible gateway instead of an agent
+
+`phone/brain.py` streams from any OpenAI-compatible `/v1/chat/completions` (default
+http://127.0.0.1:8788/v1, i.e. [taituo/opencode-go-gateway](https://github.com/taituo/opencode-go-gateway)
+run locally on the OpenCode Go key). The persona is the system prompt, the history (12 turns, reset after
+30 min idle) lives in `serve.py`, and every turn gets the time of day so Urho is lively in the morning and
+calm at bedtime. `FURBY_BRAIN=acp` switches back to `opencode acp`.
+
+Time to first token, Finnish persona prompt, one request at a time (2026-10-18):
+
+| model | first token | total (short answer) |
+|---|---|---|
+| minimax-m3 | 0.7–0.8 s | 0.8–1.2 s (terse) |
+| qwen3.6-plus (default) | ~1.0 s | 1.3–1.9 s |
+| kimi-k2.6 | ~1.0 s | 1.3–2.1 s |
+| gpt-5.6-luna | 1.2–1.7 s | ~2 s |
+| Muse Spark via `opencode acp` | 1.5–2.3 s | reasons at length first |
+
+The voice is ElevenLabs "Brian" one semitone down: Urho, a small fur ball with a deep voice.
+
 Run:
 
+```bash
+cd ~/src/opencode-go-gateway && GATEWAY_BEARER="$(cat ~/.config/fluffkit/gateway_bearer)" GATEWAY_HOST=127.0.0.1 OPENCODE_AUTH_FILE=~/.local/share/opencode/auth.json node --import tsx src/main.ts
+```
 ```bash
 ELEVENLABS_API_KEY=… python3 phone/serve.py
 ```

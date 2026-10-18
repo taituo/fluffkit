@@ -109,8 +109,8 @@ if (!Element.prototype.replaceChildren) {
 const SVC = "dab91435-b5a1-e29c-b041-bcd562613bde";
 const GP_W = "dab91383-b5a1-e29c-b041-bcd562613bde";
 const GP_N = "dab91382-b5a1-e29c-b041-bcd562613bde";
-const VOICE = "cgSgspJ2msm6clMCkdW9";   // ElevenLabs "Jessica"
-const RATE = Math.pow(2, 3 / 12);         // +3 semitones (also ~19 % faster)
+const VOICE = "nPczCjzI2devNBz1zQrb";   // ElevenLabs "Brian": deep, resonant (Urho)
+const RATE = Math.pow(2, -1 / 12);        // -1 semitone: a touch deeper (and ~6 % slower)
 const MSG = { 0x06: "RESPONSE_PLAYED", 0x07: "SPEECH_PLAYING", 0x0c: "SEQUENCE_PLAYING", 0x0e: "SEQUENCE_ENDED",
               0x0f: "INPUT_OUT_OF_RANGE", 0x19: "GROUP_NOT_ACTIVE" };
 const $ = (id) => document.getElementById(id);
@@ -276,13 +276,13 @@ $("sayBtn").onclick = () => busy($("sayBtn"), "…", async () => {
 $("say").onkeydown = (e) => { if (e.key === "Enter") $("sayBtn").click(); };
 
 // sounds Furby needs instantly: made once per page load, then played from memory
-const FILLER_TEXTS = ["Hetkinen…", "Hmm, mietitäänpä…", "Odotas…", "Ooh, hyvä kysymys!", "Mmm, annas kun mietin…",
+const FILLER_TEXTS = ["Hetkinen…", "Hmm, mietitäänpä…", "Odotas…", "Hmm, hyvä kysymys…", "Mmm, annas kun mietin…",
                       "Hmm-hmm…", "Jaahas…", "Kas kummaa…", "Odota pikkuisen…", "No niin…"];
 const ready = { fillers: [], laugh: null };
 async function prepareSounds() {
   if (!store.get("key", "")) return;
   ready.fillers = (await Promise.all(FILLER_TEXTS.map((t) => tts(t).catch(() => null)))).filter(Boolean);
-  try { ready.laugh = await sfx("tiny cute high-pitched cartoon creature giggle", 1.5); } catch {}
+  try { ready.laugh = await sfx("deep warm hearty chuckle of a big friendly man", 1.5); } catch {}
 }
 
 // the moment the child stops talking: a body gesture plus a short "hmm" so the wait never feels empty
