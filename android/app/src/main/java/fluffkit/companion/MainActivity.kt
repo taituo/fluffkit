@@ -96,7 +96,7 @@ class MainActivity : Activity() {
             button("Liike") { c.items.filter { it.gesture }.randomOrNull()?.let { c.act(it.action, "testi") } },
             button("Nauru") { c.scope.launch { c.chat("Naura kerran isosti.") } })
         row(button("🟢") { c.furby.send(0x14, 0, 255, 40) }, button("🟠") { c.furby.send(0x14, 255, 170, 0) },
-            button("🩷") { c.furby.send(0x14, 255, 0, 150) }, button("⚫") { c.furby.send(0x14, 0, 0, 0) })
+            button("🟣") { c.furby.send(0x14, 255, 0, 150) }, button("⚫") { c.furby.send(0x14, 0, 0, 0) })
         row(button("Lataa asetukset") { c.reload() }, button("Unohda keskustelu") { c.brain.reset(); Log.i("keskustelu nollattu") })
 
         heading("Avaimet (salattuna vain tässä puhelimessa)")

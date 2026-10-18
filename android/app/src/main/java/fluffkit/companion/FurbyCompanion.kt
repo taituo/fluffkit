@@ -300,6 +300,17 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         }
     }
 
+    /** Perform a ready-made answer (tags and sentences) without the brain: for tests. */
+    suspend fun chatScript(script: String) {
+        busy = true
+        try {
+            val buf = StringBuilder(script)
+            for (seg in takeSegments(buf, true)) perform(prepare(seg))
+        } finally { restingColour(); quietUntil = System.currentTimeMillis() + 400; busy = false }
+    }
+
+    fun hear(wav: ByteArray) = onUtterance(wav)
+
     // called on the mic thread: mute right away, then transcribe and answer
     private fun onUtterance(wav: ByteArray) {
         busy = true
