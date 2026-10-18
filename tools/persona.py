@@ -38,8 +38,13 @@ def main() -> None:
     name = sys.argv[1]
     if name not in names or name not in cfg.get("personas", {}):
         sys.exit(f"unknown persona {name!r}; have: {', '.join(names)}")
+    others = [cfg["personas"][n]["name"] for n in names if n != name and n in cfg["personas"]]
+    switch = (f"\n## Persoonan vaihto\n\n- `[persoona: nimi]` = vaihdat toiseksi Furbyksi: {', '.join(others)}. "
+              "Käytä vain, kun lapsi pyytää vaihtamaan persoonaa tai kutsuu toista nimeltä (\"vaihda Urhoon\", "
+              "\"haluan puhua Seliannelle\"). Sano ensin lyhyesti hei hei ja laita merkintä viimeiseksi: "
+              "toinen Furby esittäytyy omalla äänellään.\n")
     agents = (AGENT / "personas" / f"{name}.md").read_text(encoding="utf-8").rstrip() + "\n\n" + \
-        (AGENT / "common.md").read_text(encoding="utf-8")
+        (AGENT / "common.md").read_text(encoding="utf-8").rstrip() + "\n" + switch
     (AGENT / "AGENTS.md").write_text(agents, encoding="utf-8")
     cfg["persona"] = name
     cfg["voice"] = {**cfg["voice"], **cfg["personas"][name]["voice"]}
