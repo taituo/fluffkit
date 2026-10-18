@@ -31,6 +31,10 @@ class Furby(private val ctx: Context, private val settings: Settings) {
     @Volatile var state = State.DISCONNECTED
         private set(v) { field = v; onState(v) }
     var onState: (State) -> Unit = {}
+    var onSequenceEnded: () -> Unit = {}
+
+    /** Off while Furby sleeps: without 20 06 it may doze, and the link stays up for the wake-up action. */
+    @Volatile var keepaliveOn = true
 
     private val adapter: BluetoothAdapter? = (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
     private val thread = HandlerThread("furby-ble").apply { start() }
@@ -136,7 +140,7 @@ class Furby(private val ctx: Context, private val settings: Settings) {
     }
 
     private val keepalive = object : Runnable {
-        override fun run() { if (state == State.CONNECTED) { send(0x20, 0x06); h.postDelayed(this, 3_000) } }
+        override fun run() { if (state == State.CONNECTED) { if (keepaliveOn) send(0x20, 0x06); h.postDelayed(this, 3_000) } }
     }
 
     private val cb = object : BluetoothGattCallback() {
@@ -184,6 +188,7 @@ class Furby(private val ctx: Context, private val settings: Settings) {
 
     private fun notified(d: ByteArray) {
         if (d.isEmpty() || d[0] == 0x21.toByte() || d[0] == 0x22.toByte()) return      // sensors / keepalive status
+        if (d[0] == 0x20.toByte() && d.size > 1 && d[1] == 0x0e.toByte()) onSequenceEnded()
         val msg = if (d[0] == 0x20.toByte() && d.size > 1) MSG[d[1].toInt() and 0xff] ?: "" else ""
         Log.i("← ${hex(d)}  $msg")
     }

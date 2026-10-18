@@ -45,14 +45,16 @@ class Brain(private val settings: Settings) {
 
     fun reset() { history.clear() }
 
-    suspend fun ask(text: String, onChunk: (String) -> Unit): String = lock.withLock {
+    suspend fun ask(text: String, context: String = "", onChunk: (String) -> Unit): String = lock.withLock {
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
             if (now - last > idleResetMs) { history.clear(); session = "furby-${now / 1000}" }   // a new play session starts fresh
             last = now
             val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", system()))
             history.takeLast(2 * keep).forEach { msgs.put(it) }
-            msgs.put(JSONObject().put("role", "user").put("content", "$text\n\n${nextStyle()}"))   // the style rides on this turn only
+            // state and style ride on this turn only; the history keeps the child's own words
+            val extra = if (context.isNotEmpty()) "$context " else ""
+            msgs.put(JSONObject().put("role", "user").put("content", "$text\n\n$extra${nextStyle()}"))
             val body = JSONObject().put("model", settings.llmModel).put("stream", true).put("max_tokens", 400).put("messages", msgs)
 
             val c = URL(settings.llmUrl.trimEnd('/') + "/chat/completions").openConnection() as HttpURLConnection

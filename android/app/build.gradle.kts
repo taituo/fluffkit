@@ -18,7 +18,8 @@ abstract class CopyPhoneAssets : DefaultTask() {
     }
 }
 
-val phone = rootProject.file("../phone")
+// -PphoneDir=/path/to/phone builds with another checkout's (e.g. uncommitted) persona and config
+val phone = (findProperty("phoneDir") as String?)?.let { file(it) } ?: rootProject.file("../phone")
 val copyPhoneAssets = tasks.register<CopyPhoneAssets>("copyPhoneAssets") {
     sources.from(File(phone, "furby-config.json"), File(phone, "packs.json"), File(phone, "furby-agent/AGENTS.md"))
 }

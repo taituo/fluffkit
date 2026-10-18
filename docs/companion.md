@@ -169,9 +169,10 @@ partial wake lock and a Wi-Fi lock, so it keeps talking with the screen off.
 | brain | `serve.py` + `brain.py` | `Brain.kt`: streams `/v1/chat/completions` itself; persona, time of day, response styles, 12 turns |
 | speech | flash TTS mp3 + Web Audio filter | `Eleven.kt` asks for `pcm_24000` (no decoding), `Voice.kt` filters and plays it on an AudioTrack |
 | turn | `chat()` | `FurbyCompanion.kt`: weighted fillers, sentence / 40-char pause cuts, tags, beak items, antenna |
+| tools | `TRICKS`, `sleepFurby()`, `lightShow()` | same tags: `[nukkumaan]` / `[herää]` (keepalive off while asleep), Furby's own tricks wait for `20 0e`, `[vilkku]`, `[valo: väri]` |
 
 The persona, `furby-config.json` and `packs.json` are copied from `phone/` into the APK at build time
-(`packs.json` is gitignored: build where it exists). Any of the three can be overridden on the phone by
+(`packs.json` is gitignored: build where it exists; `-PphoneDir=…` builds with another checkout's `phone/`). Any of the three can be overridden on the phone by
 dropping a file into `/sdcard/Android/data/fluffkit.companion/files/` and tapping "Lataa asetukset";
 `furby-config.json` there is merged key by key over the bundled one.
 
