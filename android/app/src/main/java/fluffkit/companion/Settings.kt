@@ -42,6 +42,11 @@ class Settings(private val ctx: Context) {
         get() = secure.getString("llm_model", null) ?: "qwen3.6-plus"
         set(v) = secure.edit().putString("llm_model", v).apply()
 
+    /** Bearer for the remote-control HTTP endpoint (Remote.kt); none = remote off. */
+    var remoteToken: String
+        get() = secure.getString("remote_token", "") ?: ""
+        set(v) = secure.edit().putString("remote_token", v).apply()
+
     var threshold: Float
         get() = prefs.getFloat("vad_thr", 0.03f)
         set(v) = prefs.edit().putFloat("vad_thr", v).apply()
@@ -64,6 +69,7 @@ class Settings(private val ctx: Context) {
             j.optString("llm_url").takeIf { it.isNotBlank() }?.let { llmUrl = it.trim() }
             j.optString("llm_bearer").takeIf { it.isNotBlank() }?.let { llmBearer = it.trim() }
             j.optString("llm_model").takeIf { it.isNotBlank() }?.let { llmModel = it.trim() }
+            j.optString("remote_token").takeIf { it.isNotBlank() }?.let { remoteToken = it.trim() }
             Log.i("avaimet tuotu tiedostosta secrets.json")
         } catch (e: Exception) {
             Log.i("secrets.json: ${e.message}")
@@ -122,6 +128,8 @@ class Config(j: JSONObject) {
     val startMs: Int = listen.optInt("start_ms", 120)
     val silenceMs: Int = listen.optInt("silence_ms", 700)
     val maxMs: Int = listen.optInt("max_ms", 15000)
+    /** Mic level that counts as speech (0..1 RMS); the app's own setting when the config has none. */
+    val threshold: Float? = if (listen.has("threshold")) listen.getDouble("threshold").toFloat() else null
 
     private val fillers = j.optJSONObject("fillers") ?: JSONObject()
     // {text, weight, kind: "hum" | "word"}; the older "texts" list counts as hums of weight 1

@@ -43,7 +43,7 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     @Volatile private var thinkingNow = false
     private val speaker = Mutex()                       // one sound at a time
 
-    val listener = Listener({ settings.threshold }, { cfg },
+    val listener = Listener({ cfg.threshold ?: settings.threshold }, { cfg },
         { busy || playing.get() > 0 || System.currentTimeMillis() < quietUntil }, ::onUtterance)
 
     private var fillers: List<Pair<Filler, Clip>> = emptyList()
@@ -58,13 +58,16 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         }
     }
 
+    private val remote = Remote(this)
+
     fun start() {
+        remote.start()
         furby.start()
         if (settings.listening) listener.start()
         scope.launch { prepareSounds() }
     }
 
-    fun stop() { listener.stop(); furby.stop() }
+    fun stop() { listener.stop(); furby.stop(); remote.stop() }
 
     fun setListening(on: Boolean) {
         settings.listening = on
@@ -72,7 +75,13 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         antennaNow = ""; restingColour()
     }
 
+    // for the subtitle screen: what the mic heard, and the sentence Furby is saying now
+    @Volatile var heard = ""; private set
+    @Volatile var saying = ""; private set
+
     fun reload() {
+        settings.importFromFile()
+        if (CompanionService.running) remote.start()
         cfg = settings.config(); items = loadItems()
         Log.i("asetukset ladattu uudelleen: ${items.size} elettä paketista $packName")
         scope.launch { prepareSounds() }
@@ -265,14 +274,22 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
             "vilkku" -> lightShow("vilkku")
             else -> if (kind.startsWith("valo:")) lightShow(kind.substring(5)) else trick(kind)
         }
-        s.speech?.await()?.let { play(it, Kind.SPEECH) }
+        s.speech?.await()?.let { saying = s.words; play(it, Kind.SPEECH) }
     }
 
     suspend fun chat(text: String) {
         Log.i("sinä: $text")
+        heard = text; saying = ""
         busy = true
         // waking Furby must not depend on the model: Scribe heard "Herää Urho" as "Tää Urho" / "Jaa urho?"
-        if (sleeping && WAKE_RE.containsMatchIn(text)) wakeFurby()
+        if (sleeping && WAKE_RE.containsMatchIn(text)) {
+            wakeFurby()                                         // Furby's own wake-up line is the answer...
+            val rest = text.replace(WAKE_WORDS, " ").replace(Regex("[^a-zåäö ]", RegexOption.IGNORE_CASE), " ").trim()
+            if (rest.split(Regex("\\s+")).count { it.length > 1 } < 2) {   // ...unless the child said more than "herää Urho"
+                quietUntil = System.currentTimeMillis() + 400; busy = false
+                return
+            }
+        }
         val t0 = System.currentTimeMillis()
         try {
             val think = scope.async { thinking() }
@@ -332,7 +349,8 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     companion object {
         val TAG = Regex("\\[(liike|nauru|nukkumaan|herää|tanssi|korvat|pieru|röyhtäys|hikka|furbylaulu|beatbox|vilkku|valo:[^\\]]*|efekti:[^\\]]*)\\]",
             RegexOption.IGNORE_CASE)
-        val WAKE_RE = Regex("\\b(urho|her[äa]{1,2}|herätys|huomen|huomenta|aamu|nouse|wake)", RegexOption.IGNORE_CASE)
+        val WAKE_WORDS = Regex("(?U)\\b(urho|her[äa]+\\w*|herätys|huomen\\w*|aamu\\w*|nouse|wake|hei|tää|jaa|no|nyt|jo)\\b", RegexOption.IGNORE_CASE)
+        val WAKE_RE = Regex("(?U)\\b(urho|her[äa]{1,2}|herätys|huomen|huomenta|aamu|nouse|wake)", RegexOption.IGNORE_CASE)
 
         private fun codes(vararg c: Int) = c
         private fun range(a: Int, b: Int, c: Int, from: Int, to: Int) = (from..to).map { intArrayOf(a, b, c, it) }

@@ -5,7 +5,9 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -13,133 +15,155 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings as SysSettings
-import android.text.InputType
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.WindowManager
 import android.widget.Button
-import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
-import android.widget.SeekBar
 import android.widget.TextView
 import kotlinx.coroutines.launch
 
-/** The small debug screen: state, log, test buttons and the keys. Everything real happens in the service. */
+/**
+ * No forms: a few big buttons, a subtitle mode (the phone stands in front of Furby and shows in large text what it
+ * heard and what Urho says), and a hidden log. Keys and config come from the Mac (secrets.json / the remote).
+ */
 class MainActivity : Activity() {
     private val app get() = application as App
     private val c get() = app.companion
     private val ui = Handler(Looper.getMainLooper())
+    private val dp get() = resources.displayMetrics.density
+
     private lateinit var state: TextView
     private lateinit var level: ProgressBar
-    private lateinit var logView: TextView
-    private lateinit var scroll: ScrollView
-    private lateinit var serviceBtn: Button
     private lateinit var listenBtn: Button
+    private lateinit var logView: TextView
+    private lateinit var logScroll: ScrollView
+    private lateinit var main: View
+    private lateinit var subs: View
+    private lateinit var subHeard: TextView
+    private lateinit var subSaying: TextView
+    private var subtitles = false
     private val logListener = { refreshLog() }
 
-    @SuppressLint("SetTextI18n")
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        val dp = resources.displayMetrics.density
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding((16 * dp).toInt(), (12 * dp).toInt(), (16 * dp).toInt(), (40 * dp).toInt()) }
-        scroll = ScrollView(this).apply { addView(root); isFillViewport = true }
-        setContentView(scroll)
+        val root = FrameLayout(this)
+        main = buildMain()
+        subs = buildSubtitles()
+        root.addView(main); root.addView(subs)
+        setContentView(root)
+        showSubtitles(app.getSharedPreferences("prefs", MODE_PRIVATE).getBoolean("subtitles", false))
+        startIfAllowed()
+    }
+
+    private fun big(label: String, colour: Int, f: () -> Unit) = Button(this).apply {
+        text = label; textSize = 22f; isAllCaps = false; setTextColor(Color.WHITE)
+        background = GradientDrawable().apply { cornerRadius = 18 * dp; setColor(colour) }
+        setOnClickListener { f() }
+    }
+
+    private fun buildMain(): View {
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val p = (16 * dp).toInt(); setPadding(p, p, p, p)
+        }
+        state = TextView(this).apply { textSize = 20f; gravity = Gravity.CENTER }
+        col.addView(state)
+        level = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 1000 }
+        col.addView(level, LinearLayout.LayoutParams(MATCH_PARENT, (14 * dp).toInt()).apply { bottomMargin = (12 * dp).toInt() })
 
         fun row(vararg v: View) = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            v.forEach { addView(it, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)) }
-            root.addView(this)
+            v.forEach { addView(it, LinearLayout.LayoutParams(0, (96 * dp).toInt(), 1f).apply { val m = (5 * dp).toInt(); setMargins(m, m, m, m) }) }
+            col.addView(this)
         }
-        fun button(t: String, f: () -> Unit) = Button(this).apply { text = t; isAllCaps = false; setOnClickListener { f() } }
-        fun heading(t: String) = root.addView(TextView(this).apply { text = t; textSize = 13f; setPadding(0, (14 * dp).toInt(), 0, (4 * dp).toInt()); setTypeface(typeface, Typeface.BOLD) })
-        fun field(hint: String, password: Boolean = false) = EditText(this).apply {
-            this.hint = hint; isSingleLine = true
-            inputType = if (password) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_CLASS_TEXT
-        }
+        listenBtn = big("", 0xFF1F8A4C.toInt()) { c.setListening(!c.listener.on) }
+        row(listenBtn)
+        row(big("🌙 Nukkumaan", 0xFF3B3B98.toInt()) { c.scope.launch { c.sleepFurby() } },
+            big("☀️ Herää", 0xFFDD8800.toInt()) { c.scope.launch { c.wakeFurby() } })
+        row(big("💃 Tanssi", 0xFFD6338A.toInt()) { Commands.run(c, "tag", "tanssi") },
+            big("🌈 Vilkku", 0xFF7B2FBE.toInt()) { Commands.run(c, "tag", "vilkku") })
+        row(big("💬 Tekstitys", 0xFF444444.toInt()) { showSubtitles(true) })
 
-        state = TextView(this).apply { textSize = 18f }
-        root.addView(state)
-        level = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 1000 }
-        root.addView(level, LinearLayout.LayoutParams(MATCH_PARENT, (16 * dp).toInt()))
-
-        serviceBtn = button("") { if (CompanionService.running) CompanionService.stop(this) else startIfAllowed() }
-        listenBtn = button("") { c.setListening(!c.listener.on) }
-        row(serviceBtn, listenBtn)
-        row(button("Etsi Furby uudelleen") { c.furby.rescan() }, button("Akku: ei rajoituksia") { askBattery() })
-
-        val thrLabel = TextView(this)
-        val thr = SeekBar(this).apply {
-            max = 29; progress = ((app.settings.threshold - 0.005f) / 0.005f).toInt()
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar, p: Int, user: Boolean) {
-                    val v = 0.005f + p * 0.005f
-                    if (user) app.settings.threshold = v
-                    thrLabel.text = "kynnys %.3f".format(v)
-                }
-                override fun onStartTrackingTouch(s: SeekBar) {}
-                override fun onStopTrackingTouch(s: SeekBar) {}
-            })
-        }
-        thrLabel.text = "kynnys %.3f".format(app.settings.threshold)
-        root.addView(thrLabel); root.addView(thr)
-
-        heading("Juttele")
-        val chat = field("Kysy Furbylta jotain…")
-        row(chat).addView(button("Kysy") { val t = chat.text.toString().trim(); chat.setText(""); if (t.isNotEmpty()) c.scope.launch { c.chat(t) } })
-        val say = field("Mitä Furby sanoo?")
-        row(say).addView(button("Sano") { val t = say.text.toString().trim(); if (t.isNotEmpty()) c.scope.launch { c.speak(t) } })
-
-        heading("Testit")
-        row(button("Nokka 2 s") { c.items.firstOrNull { it.talk == 2.0 }?.let { c.act(it.action, "testi") } },
-            button("Liike") { c.items.filter { it.gesture }.randomOrNull()?.let { c.act(it.action, "testi") } },
-            button("Nauru") { c.scope.launch { c.chat("Naura kerran isosti.") } })
-        row(button("🟢") { c.furby.send(0x14, 0, 255, 40) }, button("🟠") { c.furby.send(0x14, 255, 170, 0) },
-            button("🟣") { c.furby.send(0x14, 255, 0, 150) }, button("⚫") { c.furby.send(0x14, 0, 0, 0) })
-        row(button("Lataa asetukset") { c.reload() }, button("Unohda keskustelu") { c.brain.reset(); Log.i("keskustelu nollattu") })
-
-        heading("Avaimet (salattuna vain tässä puhelimessa)")
-        val s = app.settings
-        val key = field(if (s.elevenKey.isBlank()) "ElevenLabs API key" else "ElevenLabs: tallennettu ✓", password = true)
-        val url = field("aivot: URL").apply { setText(s.llmUrl) }
-        val bearer = field(if (s.llmBearer.isBlank()) "aivot: bearer" else "bearer: tallennettu ✓", password = true)
-        val model = field("aivot: malli").apply { setText(s.llmModel) }
-        listOf(key, url, bearer, model).forEach { root.addView(it) }
-        root.addView(button("Tallenna") {
-            key.text.toString().trim().takeIf { it.isNotEmpty() }?.let { s.elevenKey = it; key.setText(""); key.hint = "ElevenLabs: tallennettu ✓" }
-            bearer.text.toString().trim().takeIf { it.isNotEmpty() }?.let { s.llmBearer = it; bearer.setText(""); bearer.hint = "bearer: tallennettu ✓" }
-            url.text.toString().trim().takeIf { it.isNotEmpty() }?.let { s.llmUrl = it }
-            model.text.toString().trim().takeIf { it.isNotEmpty() }?.let { s.llmModel = it }
-            Log.i("asetukset tallennettu")
-            c.scope.launch { c.prepareSounds() }
+        // the log and the one-off setup buttons stay out of the way
+        val more = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+        col.addView(Button(this).apply {
+            text = "Loki ja huolto"; isAllCaps = false
+            setOnClickListener { more.visibility = if (more.visibility == View.GONE) View.VISIBLE else View.GONE }
         })
-        root.addView(TextView(this).apply {
+        col.addView(more)
+        fun small(t: String, f: () -> Unit) = Button(this).apply { text = t; isAllCaps = false; setOnClickListener { f() } }
+        more.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            listOf(small("Akku: ei rajoituksia") { askBattery() }, small("Etsi Furby") { c.furby.rescan() },
+                small("Lataa asetukset") { c.reload() }).forEach { addView(it, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)) }
+        })
+        more.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            listOf(small("Käynnistä / pysäytä") { if (CompanionService.running) CompanionService.stop(this@MainActivity) else startIfAllowed() },
+                small("Unohda keskustelu") { c.brain.reset(); Log.i("keskustelu nollattu") })
+                .forEach { addView(it, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)) }
+        })
+        more.addView(TextView(this).apply {
             textSize = 12f
-            text = "Muokattavat tiedostot: ${s.dir}/ furby-config.json, AGENTS.md, packs.json (Lataa asetukset). " +
-                "secrets.json tuodaan ja poistetaan käynnistyksessä."
+            text = "Avaimet ja asetukset tulevat koneelta: android/furby_remote.py (tai secrets.json / furby-config.json " +
+                "kansioon ${app.settings.dir})."
         })
-
-        heading("Loki")
         logView = TextView(this).apply { typeface = Typeface.MONOSPACE; textSize = 11f; setTextIsSelectable(true) }
-        root.addView(logView)
+        more.addView(logView)
 
-        startIfAllowed()
+        logScroll = ScrollView(this).apply { addView(col) }
+        return logScroll
+    }
+
+    private fun buildSubtitles(): View {
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+            setBackgroundColor(Color.BLACK)
+            val p = (20 * dp).toInt(); setPadding(p, p, p, p)
+            setOnClickListener { showSubtitles(false) }           // tap anywhere to leave
+        }
+        subHeard = TextView(this).apply { textSize = 22f; setTextColor(0xFF9A9AA8.toInt()); gravity = Gravity.CENTER }
+        subSaying = TextView(this).apply { textSize = 40f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setTypeface(typeface, Typeface.BOLD) }
+        col.addView(subHeard, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = (24 * dp).toInt() })
+        col.addView(subSaying, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        return col
+    }
+
+    private fun showSubtitles(on: Boolean) {
+        subtitles = on
+        app.getSharedPreferences("prefs", MODE_PRIVATE).edit().putBoolean("subtitles", on).apply()
+        subs.visibility = if (on) View.VISIBLE else View.GONE
+        main.visibility = if (on) View.GONE else View.VISIBLE
+        // subtitles keep the screen on; otherwise the phone may sleep under Furby
+        if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     private val tick = object : Runnable {
         @SuppressLint("SetTextI18n")
         override fun run() {
             val f = when (c.furby.state) {
-                Furby.State.CONNECTED -> "🟢 yhdistetty"; Furby.State.CONNECTING -> "🟡 yhdistää…"
-                Furby.State.SCANNING -> "🟡 etsii…"; Furby.State.DISCONNECTED -> "🔴 ei yhteyttä"
+                Furby.State.CONNECTED -> if (c.sleeping) "😴 nukkuu" else "🟢 yhdistetty"
+                Furby.State.CONNECTING -> "🟡 yhdistää…"; Furby.State.SCANNING -> "🟡 etsii…"
+                Furby.State.DISCONNECTED -> "🔴 ei yhteyttä"
             }
-            val mic = when { !c.listener.on -> "mikki pois"; c.busy -> "miettii"; c.listener.recording -> "kuulee puhetta"; else -> "kuuntelee" }
+            val mic = when { !CompanionService.running -> "pysäytetty"; !c.listener.on -> "mikki pois"; c.busy -> "miettii"
+                c.listener.recording -> "kuulee puhetta"; else -> "kuuntelee" }
             state.text = "Furby $f · $mic"
             level.progress = (c.listener.level / 0.15f * 1000).toInt().coerceAtMost(1000)
-            serviceBtn.text = if (CompanionService.running) "Pysäytä" else "Käynnistä"
-            listenBtn.text = "👂 Kuuntelu: " + if (c.listener.on) "päällä" else "pois"
-            ui.postDelayed(this, 100)
+            listenBtn.text = if (c.listener.on) "👂 Kuuntelee — paina: pois" else "🔇 Ei kuuntele — paina: päälle"
+            (listenBtn.background as GradientDrawable).setColor(if (c.listener.on) 0xFF1F8A4C.toInt() else 0xFF8A1F2C.toInt())
+            if (subtitles) {
+                subHeard.text = c.heard.takeIf { it.isNotEmpty() }?.let { "“$it”" } ?: ""
+                subSaying.text = c.saying.ifEmpty { if (c.busy) "…" else "" }
+            }
+            ui.postDelayed(this, 150)
         }
     }
 
@@ -147,9 +171,8 @@ class MainActivity : Activity() {
     override fun onPause() { super.onPause(); Log.unlisten(logListener); ui.removeCallbacks(tick) }
 
     private fun refreshLog() {
-        val atEnd = scroll.scrollY + scroll.height >= scroll.getChildAt(0).height - 50
-        logView.text = Log.text()
-        if (atEnd) scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+        if (!::logView.isInitialized) return
+        logView.text = Log.text().lines().takeLast(120).joinToString("\n")
     }
 
     private fun needed(): List<String> = buildList {
