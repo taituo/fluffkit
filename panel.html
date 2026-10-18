@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Furby Panel</title>
+<style>
+  :root {
+    --bg: #faf7fb; --panel: #ffffff; --ink: #231a2b; --muted: #75697f; --line: #e7dfec;
+    --accent: #d6338a; --accent-ink: #ffffff; --ok: #1f8a4c; --warn: #b7791f; --bad: #c53030;
+    --tx: #2b6cb0; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17121b; --panel: #211a27; --ink: #f1e9f5; --muted: #a596b0; --line: #352b3d;
+      --accent: #ff5cab; --accent-ink: #1a0f17; --ok: #48bb78; --warn: #ecc94b; --bad: #fc8181; --tx: #63b3ed;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+           border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  h1 { font-size: 18px; margin: 0; }
+  .pill { font-size: 13px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--line); }
+  .pill.connected { color: var(--ok); border-color: var(--ok); }
+  .pill.searching { color: var(--warn); border-color: var(--warn); }
+  .pill.disconnected { color: var(--bad); border-color: var(--bad); }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; padding: 16px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  .items { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .item { text-align: left; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+          border-radius: 10px; padding: 12px; cursor: pointer; font: inherit; min-height: 84px; }
+  .item:hover { border-color: var(--accent); }
+  .item b { display: block; font-size: 20px; color: var(--accent); }
+  .item.flash { background: var(--accent); color: var(--accent-ink); }
+  .item.flash b { color: var(--accent-ink); }
+  .pack { font: inherit; padding: 8px 14px; border-radius: 99px; cursor: pointer;
+          border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .pack.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .pack small { opacity: .7; }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  button.tool { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+                border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  button.tool:hover { border-color: var(--accent); }
+  input { font: inherit; font-size: 13px; padding: 5px 7px; border-radius: 8px;
+          border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  input.n { width: 52px; }
+  input.hex { width: 160px; font-family: var(--mono); }
+  input[type=color] { padding: 0; width: 34px; height: 30px; }
+  label { font-size: 13px; color: var(--muted); display: inline-flex; gap: 4px; align-items: center; }
+  .group { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border: 1px dashed var(--line); border-radius: 8px; }
+  #log { font-family: var(--mono); font-size: 12px; height: 60vh; overflow: auto; background: var(--bg);
+         border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+  .row { display: grid; grid-template-columns: 58px 54px minmax(0, 1fr); gap: 8px; padding: 2px 4px; border-radius: 4px; }
+  .row .hex { overflow-wrap: anywhere; }
+  .row .note { color: var(--muted); }
+  .row.tx .dir { color: var(--tx); }
+  .row.rx .dir { color: var(--ok); }
+  .row.state .dir, .row.log .dir { color: var(--warn); }
+  .row.hl { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .t { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐣 Furby Panel</h1>
+  <span id="state" class="pill disconnected">disconnected</span>
+</header>
+<main>
+  <section>
+    <h2>Puhu heti</h2>
+    <div class="tools">
+      <input id="say" style="flex:1; min-width:0; font-size:15px; padding:8px 10px" placeholder="Kirjoita mitä Furby sanoo… (Enter)">
+      <button class="tool" id="sayBtn" style="padding:8px 14px">Sano</button>
+    </div>
+    <h2>Uusi ääni</h2>
+    <div class="tools">
+      <select id="kind" style="font:inherit; padding:7px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink)">
+        <option value="sfx">efekti</option><option value="music">laulu / musiikki</option><option value="speech">puhe</option>
+      </select>
+      <input id="prompt" style="flex:1; min-width:0; font-size:15px; padding:8px 10px" placeholder="esim. cartoon robot boing and funny squeak">
+      <label>s <input id="secs" class="n" type="number" value="3" min="0.5" max="120" step="0.5"></label>
+      <button class="tool" id="genBtn" style="padding:8px 14px">Tee ja soita</button>
+    </div>
+    <h2>Äänipankki</h2>
+    <div id="bank" class="tools"></div>
+    <h2>Paketti</h2>
+    <div id="packs" class="tools"></div>
+    <h2>Lauseet</h2>
+    <div id="items" class="items"></div>
+  </section>
+  <section>
+    <h2>Debuggeri</h2>
+    <div class="tools">
+      <button class="tool" data-post="/api/slots">Kysy slotit</button>
+      <span class="group">slot <input id="slot" class="n" type="number" value="13" min="0" max="13">
+        <button class="tool" id="act">Aktivoi</button><button class="tool" id="deact">Poista käytöstä</button></span>
+      <button class="tool" data-post="/api/debugmenu">Debug-sivu ▶</button>
+      <span class="group">antenni <input id="color" type="color" value="#00ff00"></span>
+    </div>
+    <div class="tools">
+      <span class="group">toiminto
+        <input id="a0" class="n" type="number" value="75"><input id="a1" class="n" type="number" value="0">
+        <input id="a2" class="n" type="number" value="0"><input id="a3" class="n" type="number" value="0">
+        <button class="tool" id="act4">Lähetä</button></span>
+      <span class="group">raw <input id="raw" class="hex" placeholder="esim. 72 tai 73 0d">
+        <button class="tool" id="sendraw">Lähetä</button></span>
+    </div>
+    <div class="tools">
+      <label><input type="checkbox" id="hideSensor" checked> piilota sensorit</label>
+      <label><input type="checkbox" id="hideNordic" checked> piilota nordic</label>
+      <label><input type="checkbox" id="pause"> pysäytä</label>
+      <button class="tool" id="clear">Tyhjennä</button>
+    </div>
+    <div id="log"></div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const logEl = $("log");
+
+async function post(url, body) {
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+                                 body: body ? JSON.stringify(body) : undefined });
+    if (!r.ok) addRow({ t: "", kind: "log", text: `${url}: ${r.status} ${(await r.json()).detail ?? ""}` });
+  } catch (e) { addRow({ t: "", kind: "log", text: `${url}: ${e}` }); }
+}
+
+function addRow(ev) {
+  if ($("pause").checked) return;
+  if (ev.kind === "rx" && $("hideSensor").checked && ev.note === "sensor") return;
+  if (ev.kind === "rx" && $("hideNordic").checked && ev.src === "nordic") return;
+  const row = document.createElement("div");
+  row.className = "row " + ev.kind;
+  const dir = { tx: "→ GP", rx: ev.src === "nordic" ? "← NRF" : "← GP", state: "●", log: "·" }[ev.kind] ?? ev.kind;
+  const body = ev.kind === "state" ? ev.state : ev.kind === "log" ? ev.text : ev.hex;
+  const note = ev.note ? `<span class="note"> ${ev.note}</span>` : "";
+  if (/SEQUENCE|OUT_OF_RANGE|GROUP|activated|loaded|deactivated/.test(ev.note ?? "")) row.classList.add("hl");
+  row.innerHTML = `<span class="t">${ev.t}</span><span class="dir">${dir}</span><span class="hex"></span>`;
+  row.querySelector(".hex").textContent = body;
+  row.querySelector(".hex").insertAdjacentHTML("beforeend", note);
+  const stick = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 20;
+  logEl.appendChild(row);
+  while (logEl.childElementCount > 1500) logEl.firstChild.remove();
+  if (stick) logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setState(s) { const p = $("state"); p.textContent = s; p.className = "pill " + s; }
+
+async function loadItems() {
+  const r = await (await fetch("/api/items")).json();
+  setState(r.state);
+  $("packs").replaceChildren(...r.packs.map((p, n) => {
+    const b = document.createElement("button");
+    b.className = "pack" + (n === r.pack ? " on" : "");
+    b.textContent = p.name;
+    if (p.slot !== null) b.insertAdjacentHTML("beforeend", ` <small>slot ${p.slot}</small>`);
+    b.onclick = async () => { b.textContent = "vaihdetaan…"; $("items").replaceChildren(); await post(`/api/pack/${n}`); loadItems(); };
+    return b;
+  }));
+  $("items").replaceChildren(...r.items.map((it) => {
+    const b = document.createElement("button");
+    b.className = "item";
+    b.innerHTML = `<b></b><span></span>`;
+    b.querySelector("b").textContent = it.key;
+    b.querySelector("span").textContent = it.text;
+    b.onclick = () => { b.classList.add("flash"); setTimeout(() => b.classList.remove("flash"), 400); post(`/api/say/${it.key}`); };
+    return b;
+  }));
+}
+
+const es = new EventSource("/api/events");
+es.onmessage = (m) => { const ev = JSON.parse(m.data); if (ev.kind === "state") setState(ev.state); addRow(ev); };
+
+document.querySelectorAll("[data-post]").forEach((b) => (b.onclick = () => post(b.dataset.post)));
+$("act").onclick = () => post(`/api/activate/${$("slot").value}`);
+$("deact").onclick = () => post(`/api/deactivate/${$("slot").value}`);
+$("color").onchange = (e) => { const h = e.target.value; post("/api/antenna", { r: parseInt(h.slice(1, 3), 16), g: parseInt(h.slice(3, 5), 16), b: parseInt(h.slice(5, 7), 16) }); };
+$("act4").onclick = () => post("/api/action", { input: $("a0").value, index: $("a1").value, subindex: $("a2").value, specific: $("a3").value });
+$("sendraw").onclick = () => post("/api/raw", { hex: $("raw").value });
+$("raw").onkeydown = (e) => { if (e.key === "Enter") $("sendraw").click(); };
+$("clear").onclick = () => logEl.replaceChildren();
+$("sayBtn").onclick = async () => {
+  const text = $("say").value.trim();
+  if (!text) return;
+  $("sayBtn").disabled = true; $("sayBtn").textContent = "puhuu…";
+  await post("/api/speak", { text });
+  $("sayBtn").disabled = false; $("sayBtn").textContent = "Sano";
+};
+$("say").onkeydown = (e) => { if (e.key === "Enter") $("sayBtn").click(); };
+
+const KIND = { sfx: "💥", music: "🎵", speech: "💬" };
+async function loadBank() {
+  const list = await (await fetch("/api/sounds")).json();
+  $("bank").replaceChildren(...list.map((s) => {
+    const b = document.createElement("button");
+    b.className = "tool";
+    b.title = s.prompt;
+    b.textContent = `${KIND[s.kind] ?? ""} ${s.prompt.slice(0, 28)}${s.prompt.length > 28 ? "…" : ""} (${s.seconds} s)`;
+    b.onclick = () => post(`/api/sounds/${s.id}/play`);
+    return b;
+  }));
+}
+$("kind").onchange = () => { $("secs").value = { sfx: 3, music: 15, speech: 0 }[$("kind").value]; };
+$("genBtn").onclick = async () => {
+  const prompt = $("prompt").value.trim();
+  if (!prompt) return;
+  $("genBtn").disabled = true; $("genBtn").textContent = "tekee…";
+  await post("/api/sound", { kind: $("kind").value, prompt, seconds: $("secs").value });
+  $("genBtn").disabled = false; $("genBtn").textContent = "Tee ja soita";
+  loadBank();
+};
+$("prompt").onkeydown = (e) => { if (e.key === "Enter") $("genBtn").click(); };
+$("sayBtn").addEventListener("click", () => setTimeout(loadBank, 2500));
+loadBank();
+loadItems();
+</script>
+</body>
+</html>

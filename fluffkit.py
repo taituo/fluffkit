@@ -2,7 +2,7 @@
 """
 fluffkit: custom audio for Furby Connect (2016) - any language, any sound.
 
-Pipeline: text -> TTS (OpenAI / Piper / espeak-ng)  or  your own wav/mp3/flac/...
+Pipeline: text -> TTS (OpenAI / ElevenLabs / Piper / espeak-ng)  or  your own wav/mp3/flac/...
           -> 16 kHz mono -> A18 (fixed open A1800 encoder) -> DLC pack
           -> BLE upload (PyFluff) -> trigger with action 75/0/y/z
 
@@ -97,6 +97,23 @@ def tts(text: str, out_wav: Path, engine: str, voice: str | None, instructions: 
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=120) as r:
             out_wav.write_bytes(r.read())
+    elif engine == "elevenlabs":
+        key = os.environ.get("ELEVENLABS_API_KEY") or die("ELEVENLABS_API_KEY is not set")
+        vid = voice or os.environ.get("FLUFFKIT_ELEVEN_VOICE") or die(
+            "give --voice <ElevenLabs voice id> or set FLUFFKIT_ELEVEN_VOICE")
+        body = {"text": text, "model_id": os.environ.get("FLUFFKIT_ELEVEN_MODEL", "eleven_multilingual_v2")}
+        req = urllib.request.Request(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=pcm_16000",
+            data=json.dumps(body).encode(),
+            headers={"xi-api-key": key, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            pcm = r.read()
+        import wave
+        with wave.open(str(out_wav), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(SR)
+            w.writeframes(pcm)
     elif engine == "piper":
         model = voice or os.environ.get("FLUFFKIT_PIPER_MODEL") or die(
             "give --voice path/to/voice.onnx or set FLUFFKIT_PIPER_MODEL")
@@ -394,29 +411,75 @@ async def _connected(address: str | None):
     return f
 
 
+DLC_SLOT_COUNT = 14  # 2 x 2 MB, 6 x 1 MB, 6 x 0.5 MB (NAND dump, 73 replies)
+# Furby answers 73 for the last slots several seconds late; tests shrink these waits.
+BLE_PACE = float(os.environ.get("FLUFFKIT_BLE_PACE", "1"))
+
+
+async def _slot_table(f) -> dict[int, bytes]:
+    """slot -> 73 reply (73 <slot> <name 8 B> <size 3 B BE> <status 4 B>)."""
+    import asyncio
+    rows: dict[int, bytes] = {}
+
+    def cb(d: bytes) -> None:
+        if len(d) >= 13 and d[0] == 0x73:
+            rows[d[1]] = d
+    f.add_gp_callback(cb)
+    try:
+        for s in range(DLC_SLOT_COUNT):
+            await f._write_gp(bytes([0x73, s]))
+            await asyncio.sleep(0.4 * BLE_PACE)
+        for _ in range(int(20 * BLE_PACE) + 1):  # up to ~8 s for the late ones
+            if len(rows) >= DLC_SLOT_COUNT:
+                break
+            await asyncio.sleep(0.4 * BLE_PACE)
+    finally:
+        f._gp_callbacks.remove(cb)
+    return rows
+
+
+def _slots_named(rows: dict[int, bytes], name: str, size: int | None = None) -> list[int]:
+    key = name.encode("ascii")[:8]
+    return sorted(s for s, d in rows.items() if d[2:10] == key and
+                  (size is None or int.from_bytes(d[10:13], "big") == size))
+
+
 def cmd_upload(args) -> None:
+    """Upload a pack and activate it, following what a real Furby needs:
+    the announced file name picks the slot (same name = same slot), uploading onto an active or
+    half-written slot crashes Furby, and the slot to activate is the one Furby reports."""
     import asyncio
     _, DLCManager = _pyfluff()
+    size = Path(args.dlc).stat().st_size
 
     async def go():
         f = await _connected(args.address)
         try:
             m = DLCManager(f)
             await f.set_antenna_color(255, 0, 0)
-            print(f"deleting slot {args.slot}")
-            await m.delete_dlc(args.slot)
-            await asyncio.sleep(2)
-            print("uploading... (Furby debug screen: 1 = receiving, 2 = done, 3 = active)")
-            # announce the stock file name: the proven route (Context IS, furpy3) kept it
+            await asyncio.sleep(3 * BLE_PACE)  # first 73 replies are slow right after connecting
+            for s in _slots_named(await _slot_table(f), args.name):
+                print(f"removing the old {args.name} in slot {s}")
+                await m.deactivate_dlc(s)
+                await asyncio.sleep(2 * BLE_PACE)
+                await m.delete_dlc(s)
+                await asyncio.sleep(4 * BLE_PACE)
+            print(f"uploading {size} bytes as {args.name}... (Furby debug screen: 1 = receiving, 2 = done, 3 = active)")
             with tempfile.TemporaryDirectory() as td:
                 up = Path(td) / args.name
                 shutil.copyfile(args.dlc, up)
                 await m.upload_dlc(up, slot=args.slot, timeout=args.timeout)
-            await m.load_dlc(args.slot)
-            await asyncio.sleep(1)
+            await asyncio.sleep(4 * BLE_PACE)  # Furby registers the file a moment after 24 05
+            found = _slots_named(await _slot_table(f), args.name, size)
+            if not found:
+                die(f"uploaded, but no slot reports {args.name} with {size} bytes; run `upload` again")
+            print(f"stored in slot {found[0]}; loading + activating it")
+            await m.load_dlc(found[0])
+            await asyncio.sleep(2 * BLE_PACE)
             await m.activate_dlc()
             await f.set_antenna_color(0, 255, 0)
-            print("done. If nothing plays: restart Furby and run `say 1`.")
+            print(f"done: `say 1` plays it now. Packs uploaded under other --name values stay in their own "
+                  f"slots; after switching between them, power-cycle Furby so it also switches the audio.")
         finally:
             await f.disconnect()
     asyncio.run(go())
@@ -480,7 +543,7 @@ def main() -> None:
 
     def audio_opts(p):
         p.add_argument("--engine", default=os.environ.get("FLUFFKIT_TTS", "openai"),
-                       choices=["openai", "piper", "espeak"])
+                       choices=["openai", "elevenlabs", "piper", "espeak"])
         p.add_argument("--voice")
         p.add_argument("--instructions")
         p.add_argument("--pitch", type=float, default=float(os.environ.get("FLUFFKIT_PITCH", 0)),
@@ -511,9 +574,12 @@ def main() -> None:
     p.add_argument("--right", nargs="+"); p.add_argument("--no-mirror", action="store_true")
     p.add_argument("--eye-frames", type=int, default=8); p.add_argument("--base")
     p = sub.add_parser("slots")
-    p = sub.add_parser("upload"); p.add_argument("dlc"); p.add_argument("--slot", type=int, default=2)
+    p = sub.add_parser("upload"); p.add_argument("dlc")
+    p.add_argument("--slot", type=int, default=2, help="slot byte of the announce; Furby picks the slot by --name")
     p.add_argument("--address"); p.add_argument("--timeout", type=float, default=900)
-    p.add_argument("--name", default="TU003410.DLC", help="file name announced to Furby (max 12 chars)")
+    p.add_argument("--name", default="TU003410.DLC",
+                   help="file name announced to Furby (max 12 chars); same name = same slot, so give each "
+                        "pack you want to keep on Furby its own name, e.g. TU900010.DLC")
     p = sub.add_parser("say"); p.add_argument("what", nargs="+", help="item number(s) or text; '-' = keep connection, read stdin")
     p.add_argument("--map", default="pack.json"); p.add_argument("--gap", type=float, default=0.15, help="pause between chained items (s)")
     p.add_argument("--address")
