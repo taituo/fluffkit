@@ -12,3 +12,14 @@ sounds/
 out/
 phone/packs.json
 phone/*.apk
+
+# secrets never go to git (keys live in ~/11labs.md, ~/.config/fluffkit/, ~/.local/share/opencode/)
+*.env
+.env*
+*.token
+*_token
+*bearer*
+*secret*
+*apikey*
+auth.json
+voice_test.mp3

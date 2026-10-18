@@ -28,8 +28,10 @@ if os.environ.get("FURBY_BRAIN", "gateway") == "acp":
 else:
     AGENT = Brain(os.environ.get("FURBY_LLM_URL", "http://127.0.0.1:8788/v1"),
                   os.environ.get("FURBY_LLM_BEARER") or (_bearer_file.read_text().strip() if _bearer_file.exists() else ""),
-                  os.environ.get("FURBY_MODEL", "qwen3.6-plus"),
-                  HERE / "furby-agent" / "AGENTS.md")
+                  os.environ.get("FURBY_MODEL", "muse-spark-1.3-contributor"),
+                  HERE / "furby-agent" / "AGENTS.md",
+                  api=os.environ.get("FURBY_API", "responses"),           # responses: effort reaches the model
+                  effort=os.environ.get("FURBY_EFFORT", "minimal") or None)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
