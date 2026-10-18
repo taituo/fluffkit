@@ -17,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FAKE = Path(__file__).resolve().parent / "fakeble"
+os.environ["FLUFFKIT_BLE_PACE"] = "0.01"  # the fake Furby answers at once
 sys.path.insert(0, str(FAKE))
 if os.environ.get("PYFLUFF_PATH"):
     sys.path.insert(1, os.environ["PYFLUFF_PATH"])
@@ -48,6 +49,7 @@ class BLE(unittest.TestCase):
     def setUp(self):
         bleak.LOG.clear()
         bleak.FILE.clear()
+        bleak.SLOTS.clear()
         self.td = tempfile.TemporaryDirectory()
         self.dir = Path(self.td.name)
 
@@ -57,21 +59,39 @@ class BLE(unittest.TestCase):
     def gp(self):
         return [d for c, d in bleak.LOG if c == "dab91383" and d != b"\x00"]
 
-    def test_upload(self):
-        data = os.urandom(3000)
+    def upload(self, data: bytes, *extra):
         p = self.dir / "my pack.dlc"
         p.write_bytes(data)
-        run(["upload", str(p), "--address", "AA:BB:CC:DD:EE:FF", "--slot", "1", "--timeout", "20"])
+        bleak.LOG.clear()
+        run(["upload", str(p), "--address", "AA:BB:CC:DD:EE:FF", "--slot", "1", "--timeout", "20", *extra])
+        return self.gp()
+
+    def test_upload_activates_the_slot_furby_used(self):
+        data = os.urandom(3000)
+        cmds = self.upload(data)
         self.assertEqual(bytes(bleak.FILE), data)
-        cmds = self.gp()
-        self.assertIn(b"\x74\x01", cmds)                                       # delete slot 1
         ann = [c for c in cmds if c[0] == 0x50][0]
         self.assertEqual(int.from_bytes(ann[2:5], "big"), 3000)                # size
-        self.assertEqual(ann[5], 1)                                            # slot
         self.assertEqual(ann[6:18], b"TU003410.DLC")                           # stock name
-        order = [c[:1] for c in cmds if c[:1] in (b"\x74", b"\x50", b"\x60", b"\x61")]
-        self.assertEqual(order, [b"\x74", b"\x50", b"\x60", b"\x61"])
+        self.assertNotIn(b"\x74\x01", cmds)                                    # nothing to delete yet
+        self.assertIn(b"\x60\x0d", cmds)                                       # load the slot Furby used (13),
+        self.assertNotIn(b"\x60\x01", cmds)                                    # not the --slot argument
+        self.assertTrue(bleak.SLOTS[13]["active"])
         self.assertIn(("disconnect", b""), bleak.LOG)
+
+    def test_reupload_frees_the_old_copy_first(self):
+        self.upload(os.urandom(2000))
+        cmds = self.upload(os.urandom(2500))
+        order = [c[:2] for c in cmds if c[:1] in (b"\x62", b"\x74", b"\x50", b"\x60", b"\x61")]
+        self.assertEqual(order[:3], [b"\x62\x0d", b"\x74\x0d", b"\x50\x00"])  # deactivate, delete, upload
+        self.assertEqual(bleak.SLOTS[13]["size"], 2500)
+
+    def test_new_name_keeps_both_packs(self):
+        self.upload(os.urandom(2000))
+        cmds = self.upload(os.urandom(2100), "--name", "TU900010.DLC")
+        self.assertNotIn(b"\x74\x0d", cmds)                                    # the other pack stays
+        self.assertEqual(sorted(bleak.SLOTS), [12, 13])
+        self.assertTrue(bleak.SLOTS[12]["active"])
 
     def test_say_chain_and_stdin(self):
         m = self.dir / "pack.json"

@@ -11,9 +11,8 @@ grandma_says_hi.wav     ├─► 16 kHz mono ─► A1800 (.a18) ─► DLC pac
 
 It started as "make my kids' Furby speak Finnish" and grew into a general custom-content toolkit.
 
-> [!WARNING]
-> **Untested on real hardware: the author is still waiting for his Furby to arrive.** 🐣
-> Every step has been checked against data (see [Verification](#verification)), but nobody has heard fluffkit audio come out of a real Furby yet. If you try it, please [open an issue](../../issues) and tell us what happened, whether it worked or not.
+> [!NOTE]
+> **Works on a real Furby** (first tested 2026-10-18): English and Finnish phrase packs, silent beak actions and stock dances played from Furby's own speaker. The upload rules a real Furby needs (slot chosen by file name, never upload onto an active slot) are in [docs/companion.md](docs/companion.md#what-a-real-furby-taught-us). If you try it, please [open an issue](../../issues) and tell us what happened.
 
 ---
 
@@ -139,7 +138,7 @@ Two alternatives:
 | `eyes FRAMES... -o eyes.gif` | preview an eye animation exactly as it will be packed |
 | `amf FILE.AMF [-o DIR] [--wav]` | list or extract Furby's own firmware voice clips |
 | `esphome pack.json --mac MAC` | ESPHome config: an ESP32 bridge with a Home Assistant button per item |
-| `upload pack.dlc [--slot 2] [--address MAC]` | delete the slot, upload, load and activate |
+| `upload pack.dlc [--name TU900010.DLC] [--address MAC]` | free the old copy of that name, upload, then load and activate the slot Furby stored it in. Each `--name` keeps its own slot, so several packs can live on Furby at once |
 | `say N` / `say "text"` | play item N, or the first item whose text matches |
 | `say 3 7 "night"` | chain several items in one connection |
 | `say -` | keep the connection open and read items from stdin, one per line (`a \| b` chains); use this for instant playback from scripts, home automation or an LLM |
@@ -148,8 +147,11 @@ Two alternatives:
 | `tts "text" -o out.wav` | just the text-to-speech step |
 | `slots` | list the 60 slots (action codes `75/0/x/y`) |
 
+**Panel:** `ELEVENLABS_API_KEY=… .venv/bin/python panel.py pack.json[@SLOT] …` opens http://127.0.0.1:8765 with a button per item, a pack switcher (one per uploaded `--name`), "speak now" (ElevenLabs on this computer's speaker while Furby moves its beak with a silent talk item), a sound bank for generated effects and songs, and a live BLE debugger.
+
 **TTS engines:**
 - `openai` (default) uses `gpt-4o-mini-tts`. Change the model with `FLUFFKIT_TTS_MODEL` and the voice with `--voice` or `FLUFFKIT_TTS_VOICE`. `--instructions` sets the speaking style.
+- `elevenlabs` uses `eleven_multilingual_v2` (Finnish sounds natural). Set `ELEVENLABS_API_KEY` and give a voice id with `--voice` or `FLUFFKIT_ELEVEN_VOICE`.
 - `piper` runs locally: `--voice path/to/voice.onnx`.
 - `espeak` needs no network or key, but sounds robotic: `FLUFFKIT_ESPEAK_VOICE=fi`.
 
@@ -209,9 +211,10 @@ Run the checks yourself with `python3 -m unittest discover -s tests -v`. The BLE
 
 ## Troubleshooting
 
-- **Watch the slot status.** Open Furby's debug screen (`pyfluff debug`, repeat until the slot page shows). Each slot shows `0` empty, `1` upload in progress or failed, `2` uploaded, `3` active.
-- **Nothing plays after upload:** restart Furby and try again. Furby seems to need a reboot between two updates.
-- **Upload stalls:** keep Furby awake and close to the computer, and try another slot with `--slot 1`. The slots are about 2 MB, 1 MB and 0.5 MB.
+- **`say` does nothing:** Furby answers `INPUT_OUT_OF_RANGE` (see the `panel.py` debugger) when no pack is active. Run `upload` again; it activates the slot Furby reports.
+- **Upload stops after ~40 s, the eye goes striped, Furby restarts:** something was written onto the active or a half-written slot. Current `upload` frees the old copy first; if it still happens, power-cycle Furby and upload again.
+- **Switched packs but the old sounds play:** actions switch at once, audio only after a power cycle (take the batteries out for 10 s).
+- **Watch the slot status.** `panel.py` → "Kysy slotit" lists all 14 slots with name and size, or open Furby's debug screen (`pyfluff debug`; 0 empty, 1 receiving or failed, 2 uploaded, 3 active).
 - **Furby acts weird:** a FurBLE reset clears the DLC storage. Hold Furby upside down, hold the tongue and pull the tail for about 10 seconds.
 
 ## FAQ
@@ -230,10 +233,11 @@ Furby Connect (2016, Bluetooth, LCD eyes). Not the 2012/Boom models (which use a
 
 ## Roadmap
 
-- [ ] Confirm playback on a real Furby (waiting for the delivery 🚚)
+- [x] Confirm playback on a real Furby (2026-10-18)
 - [ ] Faster uploads: tune the BLE pacing and slim the base DLC
 - [x] Custom eye animations (PNG/GIF/SVG)
-- [ ] Silent "talk" and gesture actions to accompany an external speaker
+- [x] Silent "talk" actions for an external speaker (`panel.py`: speech, sound effects and songs from ElevenLabs, Furby moves)
+- [ ] Gesture-library pack template and a companion device inside the battery box ([docs/companion.md](docs/companion.md))
 - [ ] Decode the MTR motor format and write new dances
 - [ ] 3D preview of motor and eye sequences
 - [ ] Lip sync (LPS) generated from your own audio

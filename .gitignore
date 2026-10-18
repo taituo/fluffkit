@@ -8,3 +8,5 @@ listen/
 kuuntele/
 .venv/
 !tests/data/*.json
+sounds/
+out/
