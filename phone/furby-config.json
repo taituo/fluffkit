@@ -11,7 +11,8 @@
         "semitones": 0,
         "speed": 1.0,
         "stability": 0.3
-      }
+      },
+      "pack_slot": 12
     },
     "selianne": {
       "name": "Selianne",
@@ -25,7 +26,8 @@
         "semitones": 0,
         "speed": 0.95,
         "stability": 0.5
-      }
+      },
+      "pack_slot": 12
     },
     "ukko": {
       "name": "Ukko",
@@ -44,7 +46,8 @@
         "semitones": -2,
         "speed": 0.88,
         "stability": 0.6
-      }
+      },
+      "pack_slot": 12
     },
     "darth": {
       "name": "Darth Fluff",
@@ -66,7 +69,8 @@
         "semitones": -4,
         "speed": 0.82,
         "stability": 0.7
-      }
+      },
+      "pack_slot": 11
     }
   },
   "voice": {
