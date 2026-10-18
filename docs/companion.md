@@ -156,6 +156,46 @@ references, humming hits, always hungry, never mean; at bedtime the same jokes, 
 192 kbps, 1–2 min); `tools/eleven_clone.py` / `tools/make_voice.sh` create an ElevenLabs Instant Voice
 Clone from them. Only for voices you have the right to clone.
 
+### Native Android app (`android/`): screen off, in a backpack
+
+The Chrome page needs the Mac, adb and the screen on. `android/` is the same companion as a native app
+(Kotlin, minSdk 29 / Android 10, no root): a foreground service holds the BLE link, the microphone, a
+partial wake lock and a Wi-Fi lock, so it keeps talking with the screen off.
+
+| piece | page (`phone/index.html`) | app (`android/app/src/main/java/fluffkit/companion/`) |
+|---|---|---|
+| BLE: GP write/notify, `20 06` every 3 s, reconnect | Web Bluetooth | `Furby.kt`: scan once for "Furby…", then reconnect by address |
+| listening | Web Audio level + MediaRecorder | `Listener.kt`: AudioRecord 16 kHz, same start/silence/max timings, 0.4 s pre-roll, WAV to Scribe |
+| brain | `serve.py` + `brain.py` | `Brain.kt`: streams `/v1/chat/completions` itself; persona, time of day, response styles, 12 turns |
+| speech | flash TTS mp3 + Web Audio filter | `Eleven.kt` asks for `pcm_24000` (no decoding), `Voice.kt` filters and plays it on an AudioTrack |
+| turn | `chat()` | `FurbyCompanion.kt`: weighted fillers, sentence / 40-char pause cuts, tags, beak items, antenna |
+
+The persona, `furby-config.json` and `packs.json` are copied from `phone/` into the APK at build time
+(`packs.json` is gitignored: build where it exists). Any of the three can be overridden on the phone by
+dropping a file into `/sdcard/Android/data/fluffkit.companion/files/` and tapping "Lataa asetukset";
+`furby-config.json` there is merged key by key over the bundled one.
+
+Keys never go into the repo or the APK. They are typed once on the settings screen, or pushed as
+`files/secrets.json` (`elevenlabs_key`, `llm_url`, `llm_bearer`, `llm_model`), which the app moves into
+EncryptedSharedPreferences and deletes on its next start.
+
+Build and install (JDK 17–21; the Android SDK path goes in `android/local.properties`):
+
+```bash
+cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew assembleDebug
+```
+```bash
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+On MIUI (Poco F1), adb installs fail with `INSTALL_FAILED_USER_RESTRICTED` until Developer options →
+"Install via USB" is on. Also set the app's battery saver to "No restrictions" (button "Akku: ei rajoituksia"),
+or MIUI stops the service with the screen off.
+
+The brain URL defaults to `http://127.0.0.1:8788/v1`, which reaches the Mac's gateway only through
+`adb reverse tcp:8788 tcp:8788`. For the backpack the gateway has to be reachable from the phone's
+network (LAN address, or a tunnel such as Tailscale) and the URL changed on the settings screen.
+
 ## Companion hardware: inside the battery box
 
 A child carries the Furby around, so the companion has to travel with it. The battery compartment
@@ -176,5 +216,6 @@ cube) shows whether the whole chain works while carried. Neither has been tried 
 - [x] Move the upload rules into `fluffkit upload` (name → slot scan → activate, clear before upload).
 - [ ] `fluffkit gestures`: build the gesture-library pack from a template.
 - [ ] MCP server on top of `panel.py` so an agent can call speak / sfx / sing / gesture / listen.
-- [ ] Companion on an old Android phone (Web Bluetooth in Chrome) or ESP32-S3 / Pi Zero 2 W.
+- [x] Companion on an old Android phone: Chrome page (`phone/`) and native app (`android/`).
+- [ ] Companion on an ESP32-S3 / Pi Zero 2 W.
 - [ ] Furby sensor events (tickle, antenna, tail) as triggers for the brain.
