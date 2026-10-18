@@ -138,6 +138,9 @@ class Config(j: JSONObject) {
     val startMs: Int = listen.optInt("start_ms", 120)
     val silenceMs: Int = listen.optInt("silence_ms", 700)
     val maxMs: Int = listen.optInt("max_ms", 15000)
+    /** voice_communication (default, like Chrome), voice_recognition or mic; software gain on top. */
+    val micSource: String = listen.optString("source", "voice_communication")
+    val gain: Float = listen.optDouble("gain", 1.0).toFloat()
     /** Mic level that counts as speech (0..1 RMS); the app's own setting when the config has none. */
     val threshold: Float? = if (listen.has("threshold")) listen.getDouble("threshold").toFloat() else null
 

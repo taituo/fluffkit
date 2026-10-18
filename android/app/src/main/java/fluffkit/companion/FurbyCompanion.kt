@@ -83,6 +83,7 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         settings.importFromFile()
         if (CompanionService.running) remote.start()
         cfg = settings.config(); items = loadItems()
+        if (listener.on) { listener.stop(); listener.start() }      // mic source may have changed
         Log.i("asetukset ladattu uudelleen: ${items.size} elettä paketista $packName")
         scope.launch { prepareSounds() }
     }

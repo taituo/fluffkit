@@ -43,6 +43,8 @@ object Commands {
         .put("listening", c.listener.on)
         .put("recording", c.listener.recording)
         .put("level", c.listener.level.toDouble())
+        .put("peak", c.listener.peak.toDouble())
+        .put("threshold", (c.cfg.threshold ?: c.settings.threshold).toDouble())
         .put("busy", c.busy)
         .put("sleeping", c.sleeping)
         .put("heard", c.heard)

@@ -5,6 +5,7 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -23,6 +24,8 @@ class Listener(
     private val onUtterance: (wav: ByteArray) -> Unit,
 ) {
     @Volatile var level = 0f; private set
+    /** Highest level over the last second, for calibrating listen.threshold. */
+    @Volatile var peak = 0f; private set
     @Volatile var recording = false; private set
     @Volatile private var running = false
     private var thread: Thread? = null
@@ -42,11 +45,16 @@ class Listener(
         val frame = rate / 50                                  // 20 ms
         val min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val rec = try {
-            AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, rate, AudioFormat.CHANNEL_IN_MONO,
+            // VOICE_COMMUNICATION is what Chrome's echo-cancelled getUserMedia uses; VOICE_RECOGNITION was ~10x quieter
+            // on the Poco F1 (peaks 0.003-0.006 against Chrome's ~0.03)
+            val src = if (config().micSource == "voice_recognition") MediaRecorder.AudioSource.VOICE_RECOGNITION
+                else if (config().micSource == "mic") MediaRecorder.AudioSource.MIC else MediaRecorder.AudioSource.VOICE_COMMUNICATION
+            AudioRecord(src, rate, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT, maxOf(min, frame * 2 * 10))
         } catch (e: Exception) { Log.i("mikki: ${e.message}"); running = false; return }
         if (rec.state != AudioRecord.STATE_INITIALIZED) { Log.i("mikki ei käynnisty (lupa?)"); rec.release(); running = false; return }
         val aec = if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(rec.audioSessionId)?.apply { enabled = true } else null
+        val agc = if (AutomaticGainControl.isAvailable()) AutomaticGainControl.create(rec.audioSessionId)?.apply { enabled = true } else null
         val ns = if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(rec.audioSessionId)?.apply { enabled = true } else null
         rec.startRecording()
         Log.i("kuuntelee")
@@ -55,14 +63,18 @@ class Listener(
         val pre = ArrayDeque<ShortArray>()                     // pre-roll: start_ms + 300 ms
         val utt = ArrayList<ShortArray>()
         var loudMs = 0; var quietMs = 0; var recMs = 0
+        val peaks = FloatArray(50); var pi = 0                  // 50 × 20 ms = 1 s
         try {
             while (running) {
                 val n = rec.read(buf, 0, frame)
                 if (n <= 0) continue
+                val gain = config().gain
+                if (gain != 1f) for (i in 0 until n) buf[i] = (buf[i] * gain).toInt().coerceIn(-32768, 32767).toShort()
                 var sum = 0.0
                 for (i in 0 until n) { val v = buf[i] / 32768.0; sum += v * v }
                 val rms = sqrt(sum / n).toFloat()
                 level = rms
+                peaks[pi] = rms; pi = (pi + 1) % peaks.size; peak = peaks.max()
                 val thr = threshold(); val cfg = config()
                 val chunk = buf.copyOf(n)
 
@@ -91,7 +103,7 @@ class Listener(
                 }
             }
         } finally {
-            rec.stop(); rec.release(); aec?.release(); ns?.release()
+            rec.stop(); rec.release(); aec?.release(); agc?.release(); ns?.release()
             level = 0f; recording = false
             Log.i("kuuntelu pois")
         }
