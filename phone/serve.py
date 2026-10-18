@@ -70,7 +70,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def _chat_stream(self):
         """Answer as newline-delimited JSON while the agent is still writing: {"t": piece} ... {"done": true}.
         HTTP/1.0 without Content-Length, so the body simply ends when the answer does."""
-        text = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}").get("text", "")
+        req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        text = req.get("text", "")
+        # what the phone knows about Furby right now, for the brain (the ACP agent ignores it)
+        context = "Furby nukkuu nyt." if req.get("sleeping") else ""
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson")
         self.end_headers()
@@ -83,7 +86,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 pass  # the phone went away; let the agent finish anyway
         try:
             if str(text).strip():
-                AGENT.ask(str(text)[:2000], on_chunk=lambda piece: out({"t": piece}))
+                kw = {"context": context} if isinstance(AGENT, Brain) else {}
+                AGENT.ask(str(text)[:2000], on_chunk=lambda piece: out({"t": piece}), **kw)
             out({"done": True})
         except Exception as e:
             out({"error": str(e)})

@@ -62,13 +62,14 @@ class Brain:
                 f"\n\n## Nyt\n\nKello on {now.tm_hour}.{now.tm_min:02d}, {WEEKDAYS[now.tm_wday]}, "
                 f"{day_part(now.tm_hour)}.\n")
 
-    def ask(self, text: str, on_chunk=None) -> str:
+    def ask(self, text: str, on_chunk=None, context: str = "") -> str:
         with self._lock:
             if time.time() - self.last > self.idle_reset:     # a new play session starts fresh
                 self.history, self.session = [], f"furby-{int(time.time())}"
             self.last = time.time()
             msgs = [{"role": "system", "content": self._system()}, *self.history[-2 * self.keep:],
-                    {"role": "user", "content": f"{text}\n\n{self._next_style()}"}]   # the style rides on this turn only
+                    {"role": "user", "content": f"{text}\n\n{(context + ' ') if context else ''}{self._next_style()}"}]
+            # state and style ride on this turn only; the history keeps the child's own words
             body = {"model": self.model, "stream": True, "max_tokens": 400, "messages": msgs}
             req = urllib.request.Request(
                 f"{self.base}/chat/completions", data=json.dumps(body).encode(),
