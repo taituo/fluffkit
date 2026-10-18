@@ -239,7 +239,15 @@ class MainActivity : Activity() {
         subSaying = text("", 40f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
         col.addView(subHeard, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = px(24) })
         col.addView(subSaying, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        return col
+        // leave by tapping anywhere, the ✕, or the back button
+        return FrameLayout(this).apply {
+            isClickable = true; setOnClickListener { showSubtitles(false) }
+            addView(col, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            addView(text("✕", 26f, Color.WHITE, true).apply {
+                gravity = Gravity.CENTER; background = rounded(0x33FFFFFF, 26)
+                setOnClickListener { showSubtitles(false) }
+            }, FrameLayout.LayoutParams(px(52), px(52), Gravity.TOP or Gravity.END).apply { setMargins(0, px(18), px(18), 0) })
+        }
     }
 
     private fun showSubtitles(on: Boolean) {
@@ -308,6 +316,9 @@ class MainActivity : Activity() {
             ui.postDelayed(this, 150)
         }
     }
+
+    @Deprecated("Activity back handling")
+    override fun onBackPressed() { if (subtitles) showSubtitles(false) else @Suppress("DEPRECATION") super.onBackPressed() }
 
     override fun onResume() { super.onResume(); Log.listen(logListener); ui.post(tick) }
     override fun onPause() { super.onPause(); Log.unlisten(logListener); ui.removeCallbacks(tick) }

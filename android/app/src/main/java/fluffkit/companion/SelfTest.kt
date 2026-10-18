@@ -47,6 +47,11 @@ object SelfTest {
         check("persona voice", pc.voiceId == "b" && pc.speed == 1.0, pc.voiceId)
         check("persona wake", wr.containsMatchIn("Herää Selianne") && !wr.containsMatchIn("Moi Urho"))
         check("persona bare wake", "Selianne herää!".replace(ww, " ").replace(Regex("[^a-zåäö ]", RegexOption.IGNORE_CASE), " ").isBlank())
+        val two = Config(JSONObject("""{"persona":"selianne","personas":{"selianne":{"name":"Selianne","wake":["selianne"]},
+            "urho":{"name":"Urho","wake":["urho"]}}}"""))
+        check("persona match", c.matchPersona(two, " Urhoon") == "urho" && c.matchPersona(two, "Seliannelle") == "selianne" &&
+            c.matchPersona(two, "URHO") == "urho" && c.matchPersona(two, "Pekka") == null)
+        check("persona tag", c.TAG.find("Hei hei! [persoona: Urho]")?.groupValues?.get(1) == "persoona: Urho")
         println(if (failed == 0) "ALL OK" else "$failed FAILED")
     }
 }

@@ -266,17 +266,25 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         return clip
     }
 
-    /** Switch persona like tools/persona.py, then introduce the new one in its own voice. */
-    fun switchPersona(id: String) {
+    @Volatile private var pendingPersona: String? = null
+
+    /** Switch persona like tools/persona.py (voice, wake words, prompt), forget the conversation, show the persona's
+     *  colour on the antenna, and let the new persona greet the child in its own voice. */
+    fun switchPersona(id: String) = scope.launch { switchAndGreet(id) }
+
+    private suspend fun switchAndGreet(id: String) {
         val p = cfg.personas[id] ?: run { Log.i("tuntematon persoona $id"); return }
         settings.switchPersona(id)
         brain.reset()
         reload()
         Log.i("persoona: ${p.name}")
+        antennaNow = "persona"
         furby.send(byteArrayOf(0x14, android.graphics.Color.red(p.colour).toByte(), android.graphics.Color.green(p.colour).toByte(),
             android.graphics.Color.blue(p.colour).toByte()))
-        antennaNow = "persona"
-        scope.launch { speak("Hei, minä olen ${p.name}!"); delay(300); antennaNow = ""; restingColour() }
+        delay(800)
+        prepareSounds()                                     // fillers in the new voice before the greeting
+        antennaNow = ""
+        chat("(Olet nyt ${p.name}. Esittäydy lapselle lyhyesti.)", hidden = true)
     }
 
     // ---- one turn ----
@@ -302,14 +310,15 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
             "nukkumaan" -> sleepFurby()
             "herää" -> wakeFurby()
             "vilkku" -> lightShow("vilkku")
-            else -> if (kind.startsWith("valo:")) lightShow(kind.substring(5)) else trick(kind)
+            else -> if (kind.startsWith("persoona:")) pendingPersona = matchPersona(cfg, kind.substring(9))
+                else if (kind.startsWith("valo:")) lightShow(kind.substring(5)) else trick(kind)
         }
         s.speech?.await()?.let { saying = s.words; play(it, Kind.SPEECH) }
     }
 
-    suspend fun chat(text: String) {
-        Log.i("sinä: $text")
-        heard = text; saying = ""
+    suspend fun chat(text: String, hidden: Boolean = false) {
+        if (hidden) Log.i("(piilovuoro: $text)") else { Log.i("sinä: $text"); heard = text }
+        saying = ""
         busy = true
         // waking Furby must not depend on the model: Scribe heard "Herää Urho" as "Tää Urho" / "Jaa urho?"
         val (wakeRe, wakeWords) = wakeRegexes(cfg)
@@ -350,6 +359,8 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
             quietUntil = System.currentTimeMillis() + 400
             busy = false
         }
+        // [persoona: …] comes last: switch once this persona has finished talking
+        pendingPersona?.let { pendingPersona = null; if (it != cfg.personaId) switchAndGreet(it) }
     }
 
     /** Perform a ready-made answer (tags and sentences) without the brain: for tests. */
@@ -382,9 +393,19 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     }
 
     companion object {
-        val TAG = Regex("\\[(liike|nauru|nukkumaan|herää|tanssi|korvat|pieru|röyhtäys|hikka|furbylaulu|beatbox|vilkku|valo:[^\\]]*|efekti:[^\\]]*)\\]",
+        val TAG = Regex("\\[(liike|nauru|nukkumaan|herää|tanssi|korvat|pieru|röyhtäys|hikka|furbylaulu|beatbox|vilkku|valo:[^\\]]*|persoona:[^\\]]*|efekti:[^\\]]*)\\]",
             RegexOption.IGNORE_CASE)
         private fun alt(words: List<String>) = words.joinToString("|") { Regex.escape(it.lowercase()) }
+
+        /** "Urhoon", "Seliannelle", "selianne" → the persona id: case-insensitive, Finnish endings allowed. */
+        fun matchPersona(cfg: Config, said: String): String? {
+            val w = said.trim().lowercase().replace(Regex("[^a-zåäö0-9 -]"), "")
+            if (w.isEmpty()) return null
+            return cfg.personas.values.firstOrNull { p ->
+                (listOf(p.id, p.name) + p.wake).map { it.lowercase() }.filter { it.length >= 3 }
+                    .any { n -> w == n || w.startsWith(n) || (w.length >= 4 && n.startsWith(w)) }
+            }?.id
+        }
 
         /** Wake call (persona's wake words + generic) and the words a bare wake call consists of. */
         fun wakeRegexes(cfg: Config): Pair<Regex, Regex> {

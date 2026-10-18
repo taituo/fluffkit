@@ -100,8 +100,18 @@ class Settings(private val ctx: Context) {
     fun persona(cfg: Config): String {
         val id = cfg.personaId
         if (id != null && exists("personas/$id.md") && exists("common.md"))
-            return text("personas/$id.md").trimEnd() + "\n\n" + text("common.md")
+            return text("personas/$id.md").trimEnd() + "\n\n" + text("common.md").trimEnd() + "\n" + switchSection(cfg, id)
         return text("AGENTS.md")
+    }
+
+    /** The "Persoonan vaihto" section tools/persona.py appends: the [persoona: nimi] tag and the other names. */
+    private fun switchSection(cfg: Config, id: String): String {
+        val others = cfg.personas.values.filter { it.id != id }.map { it.name }
+        if (others.isEmpty()) return ""
+        return "\n## Persoonan vaihto\n\n- `[persoona: nimi]` = vaihdat toiseksi Furbyksi: ${others.joinToString(", ")}. " +
+            "Käytä vain, kun lapsi pyytää vaihtamaan persoonaa tai kutsuu toista nimeltä (\"vaihda Urhoon\", " +
+            "\"haluan puhua Seliannelle\"). Sano ensin lyhyesti hei hei ja laita merkintä viimeiseksi: " +
+            "toinen Furby esittäytyy omalla äänellään.\n"
     }
 
     /** What tools/persona.py does: name the persona in the device's furby-config.json and copy its voice there. */

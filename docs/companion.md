@@ -177,8 +177,9 @@ rainbow) plus a subtitle mode that shows in large text what was heard and what U
 The persona, `furby-config.json` and `packs.json` are copied from `phone/` into the APK at build time
 (`packs.json` is gitignored: build where it exists; `-PphoneDir=…` builds with another checkout's `phone/`),
 and can be replaced at run time with `furby_remote.py push`. Personas (`personas/<id>.md` + `common.md`, voice and
-wake words under `personas` in the config) are bundled too; the persona chips on the main screen and
-`/persona` switch like `tools/persona.py`, and the wake call follows the persona's wake words. Furby's sensor
+wake words under `personas` in the config) are bundled too; the persona chips on the main screen, `/persona` and the model's own `[persoona: nimi]` tag
+("vaihda Urhoon"; names match loosely, Finnish endings included) switch like `tools/persona.py`, forget the
+conversation and let the new persona greet in its own voice; the wake call follows the persona's wake words. Furby's sensor
 packets (`21 …`) are logged when they change and shown as `sensor` in `/status`, for decoding the antenna. `listen.threshold` in the config sets the mic level.
 
 Keys never go into the repo, the APK or the log. `furby_remote.py setup` pushes them over adb as
