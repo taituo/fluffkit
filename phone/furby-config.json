@@ -1,11 +1,40 @@
 {
+  "persona": "selianne",
+  "personas": {
+    "urho": {
+      "name": "Urho",
+      "wake": [
+        "urho"
+      ],
+      "voice": {
+        "id": "TOQpwiUO86jXKNDkdC31",
+        "semitones": 0,
+        "speed": 1.0,
+        "stability": 0.3
+      }
+    },
+    "selianne": {
+      "name": "Selianne",
+      "wake": [
+        "selianne",
+        "seliann",
+        "sel"
+      ],
+      "voice": {
+        "id": "cgSgspJ2msm6clMCkdW9",
+        "semitones": 0,
+        "speed": 0.95,
+        "stability": 0.5
+      }
+    }
+  },
   "voice": {
-    "id": "TOQpwiUO86jXKNDkdC31",
+    "id": "cgSgspJ2msm6clMCkdW9",
     "model": "eleven_flash_v2_5",
     "language": "fi",
     "semitones": 0,
-    "speed": 1.0,
-    "stability": 0.3,
+    "speed": 0.95,
+    "stability": 0.5,
     "similarity": 0.85
   },
   "fx": {
@@ -19,7 +48,8 @@
   },
   "listen": {
     "silence_ms": 700,
-    "start_ms": 120,
+    "threshold": 0.003,
+    "start_ms": 150,
     "max_ms": 15000
   },
   "fillers": {
