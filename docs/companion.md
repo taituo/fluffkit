@@ -134,6 +134,21 @@ adb reverse tcp:8766 tcp:8766
 
 then open http://localhost:8766 in the phone's Chrome, tap "Yhdistä Furbyyn" and pick Furby.
 
+### Configuration and voice
+
+`phone/furby-config.json` is read by the page on every load (served with the key as `/config.json`):
+voice id, model, language, pitch (`semitones`), `speed`, `stability`; the "Furby filter" (`fx`: band,
+drive, bit depth, hold, stutter chance); listening timings; 36 short filler lines spoken the moment the
+child stops talking (with a 1 s beak flap); the laugh prompt; antenna colours for idle / listening /
+thinking / speaking. Fillers and the laugh are made once per voice and kept in the phone's Cache Storage.
+
+The persona (`phone/furby-agent/AGENTS.md`) is "Urho", a 2016 meme Furby: upbeat, Vine and meme
+references, humming hits, always hungry, never mean; at bedtime the same jokes, whispered.
+
+`tools/voice_samples.py` turns `.a18`, DLC, AMF and ordinary audio into clean MP3 samples (44.1 kHz,
+192 kbps, 1–2 min); `tools/eleven_clone.py` / `tools/make_voice.sh` create an ElevenLabs Instant Voice
+Clone from them. Only for voices you have the right to clone.
+
 ## Companion hardware: inside the battery box
 
 A child carries the Furby around, so the companion has to travel with it. The battery compartment

@@ -1,0 +1,89 @@
+{
+  "voice": {
+    "id": "TOQpwiUO86jXKNDkdC31",
+    "model": "eleven_flash_v2_5",
+    "language": "fi",
+    "semitones": 0,
+    "speed": 1.0,
+    "stability": 0.3,
+    "similarity": 0.85
+  },
+  "fx": {
+    "on": true,
+    "lowHz": 250,
+    "highHz": 5500,
+    "drive": 2,
+    "bits": 10,
+    "hold": 2,
+    "glitchChance": 0.15
+  },
+  "listen": {
+    "silence_ms": 700,
+    "start_ms": 120,
+    "max_ms": 15000
+  },
+  "fillers": {
+    "beak": true,
+    "texts": [
+      "Ooh!",
+      "Hups!",
+      "Hmm!",
+      "Jee!",
+      "Yeet!",
+      "Aa-haa!",
+      "Odota!",
+      "Hetki!",
+      "Hmm-hmm!",
+      "Joo joo!",
+      "Mitä ihmettä!",
+      "Hikk!",
+      "Ooh, hyvä!",
+      "Aivot pyörii!",
+      "Mietin, mietin…",
+      "Dab-hetki!",
+      "Yksi sekunti!",
+      "Ooh, jännää!",
+      "Hups, korvat!",
+      "Nam, mietin…",
+      "Jee jee jee!",
+      "Kuuntelin kaiken!",
+      "Wau!",
+      "Okei okei!",
+      "Hmm, kas!",
+      "Oho!",
+      "Kiva kysymys!",
+      "Ai niin!",
+      "Hetkinen!",
+      "No niin!",
+      "Masu miettii!",
+      "Pling!",
+      "Hui!",
+      "Juu juu!",
+      "Tota noin…",
+      "Ooh, keksin!"
+    ]
+  },
+  "laugh": "goofy deep belly laugh of a silly cartoon creature, bouncy and joyful",
+  "antenna": {
+    "idle": [
+      0,
+      0,
+      40
+    ],
+    "listening": [
+      0,
+      255,
+      40
+    ],
+    "thinking": [
+      255,
+      170,
+      0
+    ],
+    "speaking": [
+      255,
+      0,
+      150
+    ]
+  }
+}

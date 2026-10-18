@@ -38,7 +38,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/config.json":
-            body = json.dumps({"elevenlabs_key": os.environ.get("ELEVENLABS_API_KEY", "")}).encode()
+            # phone/furby-config.json (voice, filter, fillers, colours…) + the key, read fresh on every load
+            cfg_file = HERE / "furby-config.json"
+            cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.exists() else {}
+            body = json.dumps({**cfg, "elevenlabs_key": os.environ.get("ELEVENLABS_API_KEY", "")}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Cache-Control", "no-store")

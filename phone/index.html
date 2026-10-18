@@ -109,8 +109,8 @@ if (!Element.prototype.replaceChildren) {
 const SVC = "dab91435-b5a1-e29c-b041-bcd562613bde";
 const GP_W = "dab91383-b5a1-e29c-b041-bcd562613bde";
 const GP_N = "dab91382-b5a1-e29c-b041-bcd562613bde";
-const VOICE = "nPczCjzI2devNBz1zQrb";   // ElevenLabs "Brian": deep, resonant (Urho)
-const RATE = Math.pow(2, -1 / 12);        // -1 semitone: a touch deeper (and ~6 % slower)
+let VOICE = "TOQpwiUO86jXKNDkdC31";     // all of these come from phone/furby-config.json (applyConfig)
+let RATE = 1;
 const MSG = { 0x06: "RESPONSE_PLAYED", 0x07: "SPEECH_PLAYING", 0x0c: "SEQUENCE_PLAYING", 0x0e: "SEQUENCE_ENDED",
               0x0f: "INPUT_OUT_OF_RANGE", 0x19: "GROUP_NOT_ACTIVE" };
 const $ = (id) => document.getElementById(id);
@@ -154,6 +154,7 @@ async function connect() {
     clearInterval(keepalive);
     keepalive = setInterval(() => send([0x20, 0x06]), 3000);           // keeps Furby awake (furby-connect-ai)
     setState("connected", "yhdistetty");
+    antennaNow = ""; setTimeout(restingColour, 500);
     log("yhdistetty: " + device.name);
   } catch (e) { setState("disconnected", "ei yhteyttä"); log("yhdistys: " + e.message); }
 }
@@ -183,14 +184,73 @@ async function play(blob, kind) {
   speakingNow = true;
   try { await playInner(blob, kind); } finally { setTimeout(() => { speakingNow = false; }, 400); }
 }
+// "Furby filter" for voice lines: toy-speaker band, a little drive, bitcrush, and now and then a stutter glitch.
+// Rendered offline with Web Audio before playing; falls back to a plain <audio> if anything is missing.
+const FX = { on: true, lowHz: 250, highHz: 4500, drive: 6, bits: 7, hold: 3, glitchChance: 0.15 };
+let fxCtx = null;
+function audioCtx() {
+  fxCtx = fxCtx || new (window.AudioContext || window.webkitAudioContext)();
+  if (fxCtx.state === "suspended") fxCtx.resume();
+  return fxCtx;
+}
+document.addEventListener("pointerdown", () => audioCtx(), { once: true });   // unlock audio on the first tap
+
+function stutter(data, sr) {
+  // repeat one 60-90 ms grain 2-3 times at a random spot: "U-u-urho!"
+  if (Math.random() > FX.glitchChance || data.length < sr) return data;
+  const g = Math.floor(sr * (0.06 + Math.random() * 0.03)), reps = 2 + Math.floor(Math.random() * 2);
+  const at = Math.floor(data.length * (0.1 + Math.random() * 0.6));
+  const out = new Float32Array(data.length + g * reps);
+  out.set(data.subarray(0, at + g));
+  for (let r = 1; r <= reps; r++) out.set(data.subarray(at, at + g), at + g * r);
+  out.set(data.subarray(at + g), at + g * (reps + 1));
+  return out;
+}
+
+async function furbyFx(blob) {
+  const ctx = audioCtx();
+  const src = await new Promise((ok, bad) => blob.arrayBuffer().then((ab) => ctx.decodeAudioData(ab, ok, bad), bad));
+  const sr = src.sampleRate, data = stutter(src.getChannelData(0), sr);
+  const off = new OfflineAudioContext(1, data.length, sr);
+  const b = off.createBuffer(1, data.length, sr); b.copyToChannel(data, 0);
+  const s = off.createBufferSource(); s.buffer = b;
+  const hp = off.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = FX.lowHz;
+  const lp = off.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = FX.highHz;
+  const ws = off.createWaveShaper(); const curve = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; curve[i] = Math.tanh(FX.drive * x) / Math.tanh(FX.drive); }
+  ws.curve = curve;
+  s.connect(hp); hp.connect(lp); lp.connect(ws); ws.connect(off.destination); s.start();
+  const out = await off.startRendering();
+  const ch = out.getChannelData(0), q = Math.pow(2, FX.bits - 1);   // bitcrush + sample-and-hold (codec-like grit)
+  for (let i = 0; i < ch.length; i += FX.hold) { const v = Math.round(ch[i] * q) / q; for (let k = 0; k < FX.hold && i + k < ch.length; k++) ch[i + k] = v * 0.9; }
+  return out;
+}
+
+async function playFx(blob, kind) {
+  const ctx = audioCtx();
+  if (ctx.state !== "running") { await ctx.resume().catch(() => {}); }
+  if (ctx.state !== "running") throw new Error("audio not unlocked yet (tap the page once)");
+  const buf = await furbyFx(blob);
+  const node = ctx.createBufferSource(); node.buffer = buf; node.playbackRate.value = RATE; node.connect(ctx.destination);
+  const secs = buf.duration / RATE;
+  const ended = new Promise((r) => (node.onended = r));
+  node.start();                                      // gesture goes out the moment the sound starts
+  if (kind === "speech" && !thinkingNow) antenna("speaking");
+  if (kind === "speech") { const t = talkFor(secs); if (t) act(t, `nokka ${secs.toFixed(1)} s`); }
+  await ended;
+}
+
 async function playInner(blob, kind) {
+  if (FX.on && (kind === "speech" || kind === "raw") && window.OfflineAudioContext) {
+    try { return await playFx(blob, kind); } catch (err) { log("fx: " + err.message); }
+  }
   const a = new Audio(URL.createObjectURL(blob));
   a.preservesPitch = false; a.webkitPreservesPitch = false; a.playbackRate = kind === "speech" ? RATE : 1;
   await new Promise((r) => { a.onloadedmetadata = r; a.onerror = r; });
   const secs = (a.duration || 2) / a.playbackRate;
   await a.play();                                   // gesture goes out the moment the sound starts
   if (kind === "raw") { /* caller moves Furby itself */ }
-  else if (kind === "speech") { const t = talkFor(secs); if (t) act(t, `nokka ${secs.toFixed(1)} s`); }
+  else if (kind === "speech") { if (!thinkingNow) antenna("speaking"); const t = talkFor(secs); if (t) act(t, `nokka ${secs.toFixed(1)} s`); }
   else if (kind === "sfx") { const m = moves(); if (m.length) act(m[Math.floor(Math.random() * m.length)], "efekti"); }
   else {
     let n = 0;
@@ -263,9 +323,12 @@ async function busy(btn, label, fn) { const t = btn.textContent; btn.disabled = 
 $("connect").onclick = connect;
 
 // flash: ~0.27 s per sentence vs ~1.1 s for multilingual_v2 (measured 2026-10-18)
-const TTS_MODEL = "eleven_flash_v2_5";
+let TTS_MODEL = "eleven_flash_v2_5", TTS_LANG = "fi", TTS_STAB = 0.3, TTS_SIM = 0.85;
 // language_code pins Finnish: without it short lines ("Hetkinen…") get read with a foreign accent
-const tts = (text) => eleven(`/v1/text-to-speech/${VOICE}?output_format=mp3_44100_128`, { text, model_id: TTS_MODEL, language_code: "fi" });
+// speed 1.18 cancels the slowdown of playing 3 semitones lower (RATE): deep voice, normal tempo
+let TTS_SPEED = 1.0;
+const tts = (text) => eleven(`/v1/text-to-speech/${VOICE}?output_format=mp3_44100_128`,
+                             { text, model_id: TTS_MODEL, language_code: TTS_LANG, voice_settings: { speed: TTS_SPEED, stability: TTS_STAB, similarity_boost: TTS_SIM } });
 const sfx = (prompt, seconds = 1.5) => eleven("/v1/sound-generation", { text: prompt, duration_seconds: seconds, prompt_influence: 0.7 });
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 async function speak(text) { await play(await tts(text), "speech"); }
@@ -275,20 +338,46 @@ $("sayBtn").onclick = () => busy($("sayBtn"), "…", async () => {
 });
 $("say").onkeydown = (e) => { if (e.key === "Enter") $("sayBtn").click(); };
 
-// sounds Furby needs instantly: made once per page load, then played from memory
-const FILLER_TEXTS = ["Hetkinen…", "Hmm, mietitäänpä…", "Odotas…", "Hmm, hyvä kysymys…", "Mmm, annas kun mietin…",
-                      "Hmm-hmm…", "Jaahas…", "Kas kummaa…", "Odota pikkuisen…", "No niin…"];
+// sounds Furby needs instantly. Kept in Cache Storage per voice, so each line is made once, not on every load.
+let FILLER_TEXTS = ["Ooh!", "Hups!", "Hmm!"], FILLER_BEAK = true;
+let LAUGH_PROMPT = "goofy deep belly laugh of a silly cartoon creature, bouncy and joyful";
+let ANTENNA = { idle: [0, 0, 40], listening: [0, 255, 40], thinking: [255, 170, 0], speaking: [255, 0, 150] };
 const ready = { fillers: [], laugh: null };
+async function cached(key, make) {
+  try {
+    const c = await caches.open("furby-voice");
+    const hit = await c.match(key);
+    if (hit) return await hit.blob();
+    const blob = await make();
+    await c.put(key, new Response(blob));
+    return blob;
+  } catch { return make(); }
+}
 async function prepareSounds() {
   if (!store.get("key", "")) return;
-  ready.fillers = (await Promise.all(FILLER_TEXTS.map((t) => tts(t).catch(() => null)))).filter(Boolean);
-  try { ready.laugh = await sfx("deep warm hearty chuckle of a big friendly man", 1.5); } catch {}
+  const tag = `/v/${VOICE}/${TTS_MODEL}/${TTS_STAB}/${TTS_SPEED}/`;
+  ready.fillers = (await Promise.all(FILLER_TEXTS.map((t) =>
+    cached(tag + encodeURIComponent(t), () => tts(t)).catch(() => null)))).filter(Boolean);
+  ready.laugh = await cached("/sfx/" + encodeURIComponent(LAUGH_PROMPT), () => sfx(LAUGH_PROMPT, 1.5)).catch(() => null);
 }
 
-// the moment the child stops talking: a body gesture plus a short "hmm" so the wait never feels empty
-function thinking() {
-  const m = moves(); if (m.length) act(pick(m), "miettii");
-  return ready.fillers.length ? play(pick(ready.fillers), "raw") : Promise.resolve();
+// the antenna shows what is going on, even though the voice comes from the phone
+let antennaNow = "";
+function antenna(state) {
+  const c = ANTENNA[state];
+  if (!c || antennaNow === state || !gpw) return;
+  antennaNow = state;
+  send([0x14, ...c]);
+}
+const restingColour = () => antenna(VAD.on ? "listening" : "idle");
+
+// the moment the child stops talking: thinking colour plus a short "hmm" with a quick beak flap
+let thinkingNow = false;
+async function thinking() {
+  antenna("thinking");
+  if (!ready.fillers.length) return;
+  thinkingNow = true;
+  try { await play(pick(ready.fillers), FILLER_BEAK ? "speech" : "raw"); } finally { thinkingNow = false; }
 }
 
 // split the streamed answer into sentences and [tags]; a segment is ready once it is followed by whitespace
@@ -359,6 +448,7 @@ async function chat(text) {
   } catch (err) { log("aivot: " + err.message); }
   done = true; if (wake) { wake(); wake = null; }
   await player;
+  restingColour();
   setTimeout(() => { speakingNow = false; }, 400);
 }
 $("chatBtn").onclick = () => busy($("chatBtn"), "miettii…", async () => {
@@ -412,7 +502,7 @@ async function pttStop(e) {
 // hands-free: start recording when the level crosses the threshold, stop after a pause.
 // Paused while Furby talks (its voice comes from this phone's speaker) and while waiting for an answer.
 const VAD = { on: false, ctx: null, an: null, rec: null, chunks: [], loud: 0, quietSince: 0, startedAt: 0, busy: false };
-const VAD_START_MS = 120, VAD_SILENCE_MS = 700, VAD_MAX_MS = 15000;
+let VAD_START_MS = 120, VAD_SILENCE_MS = 700, VAD_MAX_MS = 15000;
 $("vadThr").value = store.get("vadThr", 0.03);
 $("vadThrVal").textContent = Number($("vadThr").value).toFixed(3);
 $("vadThr").oninput = () => { store.set("vadThr", Number($("vadThr").value)); $("vadThrVal").textContent = Number($("vadThr").value).toFixed(3); };
@@ -468,6 +558,7 @@ function vadTick() {
 $("vadBtn").onclick = async () => {
   VAD.on = !VAD.on;
   $("vadBtn").textContent = "👂 Kuuntele itsestään: " + (VAD.on ? "päällä" : "pois");
+  restingColour();
   if (!VAD.on) { if (VAD.rec) { VAD.rec.onstop = null; VAD.rec.stop(); VAD.rec = null; } $("vadLevel").style.width = "0"; return; }
   try {
     micStream = micStream || await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
@@ -496,7 +587,29 @@ fetch("packs.json").then((r) => r.json()).then((p) => { packs = p; if (cur >= pa
   .catch(() => log("packs.json puuttuu"));
 renderBank();
 // served by phone/serve.py over `adb reverse`: take the key from the computer, if it has one
-fetch("config.json").then((r) => r.json()).then((c) => { if (c.elevenlabs_key) { store.set("key", c.elevenlabs_key); log("ElevenLabs-avain saatu koneelta"); } })
+// phone/furby-config.json via serve.py: voice, filter, listening, fillers, laugh, antenna colours
+function applyConfig(c) {
+  const v = c.voice || {};
+  if (v.id) VOICE = v.id;
+  if (v.model) TTS_MODEL = v.model;
+  if (v.language) TTS_LANG = v.language;
+  if (v.semitones != null) RATE = Math.pow(2, v.semitones / 12);
+  if (v.speed != null) TTS_SPEED = v.speed;
+  if (v.stability != null) TTS_STAB = v.stability;
+  if (v.similarity != null) TTS_SIM = v.similarity;
+  if (c.fx) Object.assign(FX, c.fx);
+  const l = c.listen || {};
+  if (l.silence_ms) VAD_SILENCE_MS = l.silence_ms;
+  if (l.start_ms) VAD_START_MS = l.start_ms;
+  if (l.max_ms) VAD_MAX_MS = l.max_ms;
+  if (c.fillers && c.fillers.texts) FILLER_TEXTS = c.fillers.texts;
+  if (c.fillers && c.fillers.beak != null) FILLER_BEAK = c.fillers.beak;
+  if (c.laugh) LAUGH_PROMPT = c.laugh;
+  if (c.antenna) Object.assign(ANTENNA, c.antenna);
+}
+fetch("config.json").then((r) => r.json()).then((c) => {
+    applyConfig(c);
+    if (c.elevenlabs_key) { store.set("key", c.elevenlabs_key); log("asetukset ja ElevenLabs-avain saatu koneelta"); } })
   .catch(() => {}).then(prepareSounds).then(() => log(`valmiina: ${ready.fillers.length} täytettä, nauru ${ready.laugh ? "✓" : "–"}`));
 </script>
 </body>
