@@ -7,12 +7,23 @@ qwen3.6-plus / kimi-k2.6, against 1.5-2.3 s through `opencode acp` (measured 202
 from __future__ import annotations
 
 import json
+import random
 import threading
 import time
 import urllib.request
 from pathlib import Path
 
 WEEKDAYS = ["maanantai", "tiistai", "keskiviikko", "torstai", "perjantai", "lauantai", "sunnuntai"]
+
+# Models pick the same register every time when asked to "vary", so the style is drawn here:
+# weighted, never the same twice in a row. Names match the persona's "Vaihtele!" section.
+STYLES = [
+    ("ytimekäs", 30, "Vain YKSI lyhyt, napakka ja hauska lause. Ei kysymystä perään."),
+    ("täysi innostus", 25, "Räjähdä riemusta: 3–4 hyvin lyhyttä huudahdusta täynnä isoja tunteita, ja ainakin yksi [liike]."),
+    ("laulu", 15, "Ala laulaa: aloita 'La-la-laa!' ja laula 3–4 lyhyttä riimittelevää säettä aiheesta omilla sanoillasi."),
+    ("nautiskelu", 15, "Pysähdy nauttimaan: aloita 'Mmm…' ja sano 2 hidasta, nautiskelevaa lausetta."),
+    ("tavallinen jutustelu", 15, "2–3 lyhyttä lausetta ja yksi kysymys takaisin."),
+]
 
 
 def day_part(hour: int) -> str:
@@ -29,13 +40,24 @@ def day_part(hour: int) -> str:
 
 class Brain:
     def __init__(self, base_url: str, bearer: str, model: str, persona: Path, keep_turns: int = 12,
-                 idle_reset_s: int = 1800):
+                 idle_reset_s: int = 1800, api: str = "chat", effort: str | None = None):
+        """api "responses" sends reasoning.effort, which the gateway passes on (chat completions drops it):
+        Muse Spark at effort "minimal" streams its first words after ~1.1 s instead of ~5 s."""
         self.base, self.bearer, self.model, self.persona = base_url.rstrip("/"), bearer, model, persona
+        self.api, self.effort = api, effort
         self.keep, self.idle_reset = keep_turns, idle_reset_s
         self.history: list[dict] = []
         self.session = f"furby-{int(time.time())}"
         self.last = 0.0
+        self.style = ""
         self._lock = threading.Lock()
+
+    def _next_style(self) -> str:
+        options = [s for s in STYLES if s[0] != self.style]
+        name, _, how = random.choices(options, [w for _, w, _ in options])[0]
+        self.style = name
+        return (f"(Vastaa nyt tyylillä {name}: {how} Jos lapsi pyytää tarinaa, kerro tarina. "
+                f"Olet jo ääntellyt miettimistä, joten älä aloita sanoilla hmm, hetkinen tai mietitään.)")
 
     def _system(self) -> str:
         now = time.localtime()
@@ -43,16 +65,22 @@ class Brain:
                 f"\n\n## Nyt\n\nKello on {now.tm_hour}.{now.tm_min:02d}, {WEEKDAYS[now.tm_wday]}, "
                 f"{day_part(now.tm_hour)}.\n")
 
-    def ask(self, text: str, on_chunk=None) -> str:
+    def ask(self, text: str, on_chunk=None, context: str = "") -> str:
         with self._lock:
             if time.time() - self.last > self.idle_reset:     # a new play session starts fresh
                 self.history, self.session = [], f"furby-{int(time.time())}"
             self.last = time.time()
             msgs = [{"role": "system", "content": self._system()}, *self.history[-2 * self.keep:],
-                    {"role": "user", "content": text}]
-            body = {"model": self.model, "stream": True, "max_tokens": 400, "messages": msgs}
+                    {"role": "user", "content": f"{text}\n\n{(context + ' ') if context else ''}{self._next_style()}"}]
+            # state and style ride on this turn only; the history keeps the child's own words
+            if self.api == "responses":
+                body = {"model": self.model, "stream": True, "instructions": msgs[0]["content"], "input": msgs[1:]}
+                if self.effort:
+                    body["reasoning"] = {"effort": self.effort}
+            else:
+                body = {"model": self.model, "stream": True, "max_tokens": 400, "messages": msgs}
             req = urllib.request.Request(
-                f"{self.base}/chat/completions", data=json.dumps(body).encode(),
+                f"{self.base}/{'responses' if self.api == 'responses' else 'chat/completions'}", data=json.dumps(body).encode(),
                 headers={"Authorization": f"Bearer {self.bearer}", "Content-Type": "application/json",
                          "x-session-id": self.session})   # the gateway keeps a conversation on one account
             answer = ""
@@ -61,11 +89,14 @@ class Brain:
                     line = raw.decode("utf-8", "replace").strip()
                     if not line.startswith("data:") or line.endswith("[DONE]"):
                         continue
-                    for ch in json.loads(line[5:]).get("choices", []):
-                        piece = (ch.get("delta") or {}).get("content") or ""
-                        if piece:
-                            answer += piece
-                            if on_chunk:
-                                on_chunk(piece)
+                    d = json.loads(line[5:])
+                    if self.api == "responses":
+                        pieces = [d.get("delta", "")] if d.get("type") == "response.output_text.delta" else []
+                    else:
+                        pieces = [(ch.get("delta") or {}).get("content") or "" for ch in d.get("choices", [])]
+                    for piece in filter(None, pieces):
+                        answer += piece
+                        if on_chunk:
+                            on_chunk(piece)
             self.history += [{"role": "user", "content": text}, {"role": "assistant", "content": answer}]
             return answer.strip()

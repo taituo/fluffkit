@@ -28,8 +28,10 @@ if os.environ.get("FURBY_BRAIN", "gateway") == "acp":
 else:
     AGENT = Brain(os.environ.get("FURBY_LLM_URL", "http://127.0.0.1:8788/v1"),
                   os.environ.get("FURBY_LLM_BEARER") or (_bearer_file.read_text().strip() if _bearer_file.exists() else ""),
-                  os.environ.get("FURBY_MODEL", "qwen3.6-plus"),
-                  HERE / "furby-agent" / "AGENTS.md")
+                  os.environ.get("FURBY_MODEL", "muse-spark-1.3-contributor"),
+                  HERE / "furby-agent" / "AGENTS.md",
+                  api=os.environ.get("FURBY_API", "responses"),           # responses: effort reaches the model
+                  effort=os.environ.get("FURBY_EFFORT", "minimal") or None)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -38,7 +40,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/config.json":
-            body = json.dumps({"elevenlabs_key": os.environ.get("ELEVENLABS_API_KEY", "")}).encode()
+            # phone/furby-config.json (voice, filter, fillers, colours…) + the key, read fresh on every load
+            cfg_file = HERE / "furby-config.json"
+            cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.exists() else {}
+            body = json.dumps({**cfg, "elevenlabs_key": os.environ.get("ELEVENLABS_API_KEY", "")}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Cache-Control", "no-store")
@@ -67,7 +72,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def _chat_stream(self):
         """Answer as newline-delimited JSON while the agent is still writing: {"t": piece} ... {"done": true}.
         HTTP/1.0 without Content-Length, so the body simply ends when the answer does."""
-        text = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}").get("text", "")
+        req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        text = req.get("text", "")
+        # what the phone knows about Furby right now, for the brain (the ACP agent ignores it)
+        context = "Furby nukkuu nyt." if req.get("sleeping") else ""
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson")
         self.end_headers()
@@ -80,7 +88,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 pass  # the phone went away; let the agent finish anyway
         try:
             if str(text).strip():
-                AGENT.ask(str(text)[:2000], on_chunk=lambda piece: out({"t": piece}))
+                kw = {"context": context} if isinstance(AGENT, Brain) else {}
+                AGENT.ask(str(text)[:2000], on_chunk=lambda piece: out({"t": piece}), **kw)
             out({"done": True})
         except Exception as e:
             out({"error": str(e)})

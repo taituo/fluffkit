@@ -1,0 +1,290 @@
+{
+  "persona": "darth",
+  "personas": {
+    "urho": {
+      "name": "Urho",
+      "wake": [
+        "urho"
+      ],
+      "voice": {
+        "id": "TOQpwiUO86jXKNDkdC31",
+        "semitones": 0,
+        "speed": 1.0,
+        "stability": 0.3
+      },
+      "pack_slot": 12
+    },
+    "selianne": {
+      "name": "Selianne",
+      "wake": [
+        "selianne",
+        "seliann",
+        "sel"
+      ],
+      "voice": {
+        "id": "cgSgspJ2msm6clMCkdW9",
+        "semitones": 0,
+        "speed": 0.95,
+        "stability": 0.5
+      },
+      "pack_slot": 12
+    },
+    "ukko": {
+      "name": "Ukko",
+      "wake": [
+        "ukko",
+        "ukkoa",
+        "ukolle"
+      ],
+      "colour": [
+        255,
+        170,
+        40
+      ],
+      "voice": {
+        "id": "nPczCjzI2devNBz1zQrb",
+        "semitones": -2,
+        "speed": 0.88,
+        "stability": 0.6
+      },
+      "pack_slot": 12
+    },
+    "darth": {
+      "name": "Darth Fluff",
+      "wake": [
+        "darth",
+        "dart",
+        "fluff",
+        "vader",
+        "veider"
+      ],
+      "colour": [
+        220,
+        0,
+        0
+      ],
+      "voice": {
+        "id": "nPczCjzI2devNBz1zQrb",
+        "language": "en",
+        "semitones": -4,
+        "speed": 0.82,
+        "stability": 0.7
+      },
+      "pack_slot": 11
+    }
+  },
+  "voice": {
+    "id": "nPczCjzI2devNBz1zQrb",
+    "model": "eleven_flash_v2_5",
+    "language": "en",
+    "semitones": -4,
+    "speed": 0.82,
+    "stability": 0.7,
+    "similarity": 0.85
+  },
+  "fx": {
+    "on": true,
+    "lowHz": 250,
+    "highHz": 5500,
+    "drive": 2,
+    "bits": 10,
+    "hold": 2,
+    "glitchChance": 0
+  },
+  "listen": {
+    "silence_ms": 700,
+    "threshold": 0.003,
+    "start_ms": 150,
+    "max_ms": 15000
+  },
+  "fillers": {
+    "beak": true,
+    "no_word_after_hum_s": 30,
+    "avoid_last": 4,
+    "items": [
+      {
+        "text": "Hmm…",
+        "weight": 8,
+        "kind": "hum"
+      },
+      {
+        "text": "Hmm-mm…",
+        "weight": 6,
+        "kind": "hum"
+      },
+      {
+        "text": "Yyhm…",
+        "weight": 6,
+        "kind": "hum"
+      },
+      {
+        "text": "Mmm…",
+        "weight": 6,
+        "kind": "hum"
+      },
+      {
+        "text": "Ömm…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hmm, niin…",
+        "weight": 5,
+        "kind": "hum"
+      },
+      {
+        "text": "Niin…",
+        "weight": 5,
+        "kind": "hum"
+      },
+      {
+        "text": "Aa-haa…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "Jaa-a…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "No…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Mm-hmm…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "Hmm, kas…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hetkinen…",
+        "weight": 3,
+        "kind": "word"
+      },
+      {
+        "text": "Mietitäänpä…",
+        "weight": 3,
+        "kind": "word"
+      },
+      {
+        "text": "Ja nyt mietitään…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Odotas…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Annas kun mietin…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Kas kummaa…",
+        "weight": 1,
+        "kind": "word"
+      },
+      {
+        "text": "Ooh!",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Hups!",
+        "weight": 1,
+        "kind": "word"
+      },
+      {
+        "text": "Ai niin!",
+        "weight": 1,
+        "kind": "word"
+      },
+      {
+        "text": "Tota noin…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Hmm-hmm-hmm…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hm?",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Mmm-hmm…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "Öö…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hmm, jaa…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "Niin niin…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hetki vaan…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Katsotaanpa…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Kuulin, kuulin…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "No mutta…",
+        "weight": 2,
+        "kind": "word"
+      }
+    ]
+  },
+  "laugh": "goofy deep belly laugh of a silly cartoon creature, bouncy and joyful",
+  "antenna": {
+    "idle": [
+      0,
+      0,
+      40
+    ],
+    "listening": [
+      0,
+      255,
+      40
+    ],
+    "thinking": [
+      255,
+      170,
+      0
+    ],
+    "speaking": [
+      255,
+      0,
+      150
+    ]
+  }
+}

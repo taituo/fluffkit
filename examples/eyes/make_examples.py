@@ -52,8 +52,38 @@ def hearts(n=6):
     return out
 
 
+STARS = [(12, 14), (30, 100), (104, 22), (116, 96), (20, 60), (98, 116), (60, 8), (8, 120), (120, 56)]
+
+
+def spaceknight():
+    """A space knight's helmet eye: an angular red visor that glows with its breathing, then a red
+    energy blade sweeps across. Stars twinkle behind. The right eye mirrors it into a helmet."""
+    def frame(glow, blade=None, twinkle=0):
+        stars = "".join(f'<circle cx="{x}" cy="{y}" r="{1.6 if (k + twinkle) % 3 else 2.6}" fill="#ffffff"/>'
+                        for k, (x, y) in enumerate(STARS))
+        r = int(150 + 105 * glow)
+        visor = (f'<polygon points="14,58 64,40 116,52 104,80 60,86 22,76" fill="#1a1a1a" stroke="#3c3c3c" stroke-width="4"/>'
+                 f'<polygon points="30,62 64,52 100,58 92,72 62,76 34,70" fill="rgb({r},{int(20 * glow)},{int(10 * glow)})"/>'
+                 f'<polygon points="44,62 64,57 84,60 78,66 62,68 48,66" fill="rgb(255,{int(90 + 120 * glow)},{int(60 + 100 * glow)})"/>')
+        saber = ""
+        if blade is not None:   # 0..1: the blade's tip position along the diagonal
+            x2, y2 = 8 + 112 * blade, 120 - 112 * blade
+            saber = (f'<line x1="8" y1="120" x2="{x2:.0f}" y2="{y2:.0f}" stroke="#ff2020" stroke-width="14" stroke-linecap="round"/>'
+                     f'<line x1="8" y1="120" x2="{x2:.0f}" y2="{y2:.0f}" stroke="#ffd8d8" stroke-width="5" stroke-linecap="round"/>'
+                     f'<rect x="0" y="112" width="18" height="16" fill="#9a9a9a"/>')
+        return f'''<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" fill="#05060f"/>
+  {stars}
+  {visor}
+  {saber}
+</svg>'''
+    return [frame(0.15), frame(0.55, twinkle=1), frame(1.0, twinkle=2), frame(0.55),
+            frame(0.3, 0.35, 1), frame(0.6, 0.75, 2), frame(1.0, 1.0), frame(0.4, twinkle=1)]
+
+
 if __name__ == "__main__":
-    for name, frames in (("thinking", thinking()), ("blink", blink()), ("hearts", hearts())):
+    for name, frames in (("thinking", thinking()), ("blink", blink()), ("hearts", hearts()),
+                         ("spaceknight", spaceknight())):
         d = HERE / name
         d.mkdir(exist_ok=True)
         for i, svg in enumerate(frames):
