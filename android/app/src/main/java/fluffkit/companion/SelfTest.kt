@@ -37,6 +37,10 @@ object SelfTest {
         check("fx", fx.data.size >= clip.data.size && fx.data.all { it in -1f..1f })
         check("pcm roundtrip", Clip.fromPcm16(24000, clip.toPcm16()).data.size == clip.data.size)
         check("brain day part", Brain.dayPart(21) == "nukkumaanmenoaika" && Brain.dayPart(7) == "aamu")
+        val v = LevelMeter.value(LevelMeter.pos(0.02f))
+        check("meter scale", kotlin.math.abs(v - 0.02f) < 0.0005f, v)
+        check("classes load", listOf("MainActivity", "FurbyView", "Remote", "CompanionService").all {
+            runCatching { Class.forName("fluffkit.companion.$it") }.isSuccess })
         println(if (failed == 0) "ALL OK" else "$failed FAILED")
     }
 }

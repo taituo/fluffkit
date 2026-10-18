@@ -23,7 +23,7 @@ object Commands {
             "act" -> c.act(text.split("/").map { it.trim().toInt() }.toIntArray(), "remote")
             "antenna" -> c.antenna(text)
             "listen" -> c.setListening(text != "off")
-            "threshold" -> { c.settings.threshold = text.toFloat() }
+            "threshold" -> { c.settings.threshold = if (text == "config") null else text.toFloat() }   // "config" = use the file
             "sleep" -> c.scope.launch { c.sleepFurby() }
             "wake" -> c.scope.launch { c.wakeFurby() }
             "reload" -> c.reload()
@@ -44,7 +44,10 @@ object Commands {
         .put("recording", c.listener.recording)
         .put("level", c.listener.level.toDouble())
         .put("peak", c.listener.peak.toDouble())
-        .put("threshold", (c.cfg.threshold ?: c.settings.threshold).toDouble())
+        .put("threshold", c.threshold.toDouble())
+        .put("threshold_from", if (c.settings.threshold != null) "slider" else if (c.cfg.threshold != null) "config" else "default")
+        .put("mood", c.mood.name.lowercase())
+        .put("brain", c.brainStatus)
         .put("busy", c.busy)
         .put("sleeping", c.sleeping)
         .put("heard", c.heard)

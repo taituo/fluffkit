@@ -55,9 +55,10 @@ class Settings(private val ctx: Context) {
         get() = secure.getString("remote_token", "") ?: ""
         set(v) = secure.edit().putString("remote_token", v).apply()
 
-    var threshold: Float
-        get() = prefs.getFloat("vad_thr", 0.03f)
-        set(v) = prefs.edit().putFloat("vad_thr", v).apply()
+    /** The slider (or remote "threshold"); once set it wins over listen.threshold in the config. */
+    var threshold: Float?
+        get() = if (prefs.contains("vad_thr")) prefs.getFloat("vad_thr", 0.03f) else null
+        set(v) = prefs.edit().apply { if (v == null) remove("vad_thr") else putFloat("vad_thr", v) }.apply()
     var furbyAddress: String?
         get() = prefs.getString("furby_addr", null)
         set(v) = prefs.edit().putString("furby_addr", v).apply()

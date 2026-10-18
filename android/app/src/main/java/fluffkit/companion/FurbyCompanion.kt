@@ -43,7 +43,10 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     @Volatile private var thinkingNow = false
     private val speaker = Mutex()                       // one sound at a time
 
-    val listener = Listener({ cfg.threshold ?: settings.threshold }, { cfg },
+    /** Mic level that counts as speech: the slider, else listen.threshold in the config, else 0.03. */
+    val threshold get() = settings.threshold ?: cfg.threshold ?: 0.03f
+
+    val listener = Listener({ threshold }, { cfg },
         { busy || playing.get() > 0 || System.currentTimeMillis() < quietUntil }, ::onUtterance)
 
     private var fillers: List<Pair<Filler, Clip>> = emptyList()
@@ -73,6 +76,19 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         settings.listening = on
         if (on) listener.start() else listener.stop()
         antennaNow = ""; restingColour()
+    }
+
+    /** For the status chip: "–" before the first answer, then the time to the first piece, or "virhe". */
+    @Volatile var brainStatus = "–"; private set
+
+    enum class Mood { IDLE, LISTENING, HEARING, THINKING, SPEAKING, SLEEPING }
+    val mood: Mood get() = when {
+        sleeping -> Mood.SLEEPING
+        playing.get() > 0 && !thinkingNow -> Mood.SPEAKING
+        busy -> Mood.THINKING
+        listener.recording -> Mood.HEARING
+        listener.on -> Mood.LISTENING
+        else -> Mood.IDLE
     }
 
     // for the subtitle screen: what the mic heard, and the sentence Furby is saying now
@@ -300,14 +316,18 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
             var first = true
             try {
                 val answer = brain.ask(text, if (sleeping) "Furby nukkuu nyt." else "") { piece ->
-                    if (first) { first = false; Log.i("aivot: ensimmäinen pala ${System.currentTimeMillis() - t0} ms") }
+                    if (first) {
+                        first = false
+                        val ms = System.currentTimeMillis() - t0
+                        Log.i("aivot: ensimmäinen pala $ms ms"); brainStatus = "%.1f s".format(ms / 1000.0)
+                    }
                     buf.append(piece)
                     takeSegments(buf, false).forEach { queue.trySend(prepare(it)) }
                 }
                 takeSegments(buf, true).forEach { queue.trySend(prepare(it)) }
                 Log.i("Furby: $answer")
             } catch (e: Exception) {
-                Log.i("aivot: ${e.message}")
+                Log.i("aivot: ${e.message}"); brainStatus = "virhe"
             }
             queue.close()
             player.join()
