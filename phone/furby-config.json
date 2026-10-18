@@ -15,7 +15,7 @@
     "drive": 2,
     "bits": 10,
     "hold": 2,
-    "glitchChance": 0.15
+    "glitchChance": 0
   },
   "listen": {
     "silence_ms": 700,
@@ -24,43 +24,169 @@
   },
   "fillers": {
     "beak": true,
-    "texts": [
-      "Ooh!",
-      "Hups!",
-      "Hmm!",
-      "Jee!",
-      "Yeet!",
-      "Aa-haa!",
-      "Odota!",
-      "Hetki!",
-      "Hmm-hmm!",
-      "Joo joo!",
-      "Mitä ihmettä!",
-      "Hikk!",
-      "Ooh, hyvä!",
-      "Aivot pyörii!",
-      "Mietin, mietin…",
-      "Dab-hetki!",
-      "Yksi sekunti!",
-      "Ooh, jännää!",
-      "Hups, korvat!",
-      "Nam, mietin…",
-      "Jee jee jee!",
-      "Kuuntelin kaiken!",
-      "Wau!",
-      "Okei okei!",
-      "Hmm, kas!",
-      "Oho!",
-      "Kiva kysymys!",
-      "Ai niin!",
-      "Hetkinen!",
-      "No niin!",
-      "Masu miettii!",
-      "Pling!",
-      "Hui!",
-      "Juu juu!",
-      "Tota noin…",
-      "Ooh, keksin!"
+    "no_word_after_hum_s": 30,
+    "avoid_last": 4,
+    "items": [
+      {
+        "text": "Hmm…",
+        "weight": 8,
+        "kind": "hum"
+      },
+      {
+        "text": "Hmm-mm…",
+        "weight": 6,
+        "kind": "hum"
+      },
+      {
+        "text": "Yyhm…",
+        "weight": 6,
+        "kind": "hum"
+      },
+      {
+        "text": "Mmm…",
+        "weight": 6,
+        "kind": "hum"
+      },
+      {
+        "text": "Ömm…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hmm, niin…",
+        "weight": 5,
+        "kind": "hum"
+      },
+      {
+        "text": "Niin…",
+        "weight": 5,
+        "kind": "hum"
+      },
+      {
+        "text": "Aa-haa…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "Jaa-a…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "No…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Mm-hmm…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "Hmm, kas…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hetkinen…",
+        "weight": 3,
+        "kind": "word"
+      },
+      {
+        "text": "Mietitäänpä…",
+        "weight": 3,
+        "kind": "word"
+      },
+      {
+        "text": "Ja nyt mietitään…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Odotas…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Annas kun mietin…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Kas kummaa…",
+        "weight": 1,
+        "kind": "word"
+      },
+      {
+        "text": "Ooh!",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Hups!",
+        "weight": 1,
+        "kind": "word"
+      },
+      {
+        "text": "Ai niin!",
+        "weight": 1,
+        "kind": "word"
+      },
+      {
+        "text": "Tota noin…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Hmm-hmm-hmm…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hm?",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Mmm-hmm…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "Öö…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hmm, jaa…",
+        "weight": 4,
+        "kind": "hum"
+      },
+      {
+        "text": "Niin niin…",
+        "weight": 3,
+        "kind": "hum"
+      },
+      {
+        "text": "Hetki vaan…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Katsotaanpa…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "Kuulin, kuulin…",
+        "weight": 2,
+        "kind": "word"
+      },
+      {
+        "text": "No mutta…",
+        "weight": 2,
+        "kind": "word"
+      }
     ]
   },
   "laugh": "goofy deep belly laugh of a silly cartoon creature, bouncy and joyful",

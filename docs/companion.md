@@ -138,9 +138,16 @@ then open http://localhost:8766 in the phone's Chrome, tap "Yhdistä Furbyyn" an
 
 `phone/furby-config.json` is read by the page on every load (served with the key as `/config.json`):
 voice id, model, language, pitch (`semitones`), `speed`, `stability`; the "Furby filter" (`fx`: band,
-drive, bit depth, hold, stutter chance); listening timings; 36 short filler lines spoken the moment the
-child stops talking (with a 1 s beak flap); the laugh prompt; antenna colours for idle / listening /
-thinking / speaking. Fillers and the laugh are made once per voice and kept in the phone's Cache Storage.
+drive, bit depth, hold, stutter chance, off by default); listening timings; 32 filler lines with a weight
+and a kind (`hum` like "Hmm…", `word` like "Hetkinen…") spoken the moment the child stops talking, with a
+1 s beak flap: weighted, never one of the last 4, and no word right after a hum; the laugh prompt; antenna
+colours for idle / listening / thinking / speaking. Fillers and the laugh are made once per voice and kept
+in the phone's Cache Storage.
+
+Every answer gets a style drawn in `phone/brain.py` (weighted, never twice in a row): short and punchy,
+bursting with excitement, a made-up song, savouring the moment, or plain chat. The style rides on the
+current user turn only; models ignored "vary your style" in the system prompt. Long sentences are cut at
+their first pause after 40 characters so speech starts sooner.
 
 The persona (`phone/furby-agent/AGENTS.md`) is "Urho", a 2016 meme Furby: upbeat, Vine and meme
 references, humming hits, always hungry, never mean; at bedtime the same jokes, whispered.

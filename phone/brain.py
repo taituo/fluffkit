@@ -7,12 +7,23 @@ qwen3.6-plus / kimi-k2.6, against 1.5-2.3 s through `opencode acp` (measured 202
 from __future__ import annotations
 
 import json
+import random
 import threading
 import time
 import urllib.request
 from pathlib import Path
 
 WEEKDAYS = ["maanantai", "tiistai", "keskiviikko", "torstai", "perjantai", "lauantai", "sunnuntai"]
+
+# Models pick the same register every time when asked to "vary", so the style is drawn here:
+# weighted, never the same twice in a row. Names match the persona's "Vaihtele!" section.
+STYLES = [
+    ("ytimekäs", 30, "Vain YKSI lyhyt, napakka ja hauska lause. Ei kysymystä perään."),
+    ("täysi innostus", 25, "Räjähdä riemusta: 3–4 hyvin lyhyttä huudahdusta täynnä isoja tunteita, ja ainakin yksi [liike]."),
+    ("laulu", 15, "Ala laulaa: aloita 'La-la-laa!' ja laula 3–4 lyhyttä riimittelevää säettä aiheesta omilla sanoillasi."),
+    ("nautiskelu", 15, "Pysähdy nauttimaan: aloita 'Mmm…' ja sano 2 hidasta, nautiskelevaa lausetta."),
+    ("tavallinen jutustelu", 15, "2–3 lyhyttä lausetta ja yksi kysymys takaisin."),
+]
 
 
 def day_part(hour: int) -> str:
@@ -35,7 +46,15 @@ class Brain:
         self.history: list[dict] = []
         self.session = f"furby-{int(time.time())}"
         self.last = 0.0
+        self.style = ""
         self._lock = threading.Lock()
+
+    def _next_style(self) -> str:
+        options = [s for s in STYLES if s[0] != self.style]
+        name, _, how = random.choices(options, [w for _, w, _ in options])[0]
+        self.style = name
+        return (f"(Vastaa nyt tyylillä {name}: {how} Jos lapsi pyytää tarinaa, kerro tarina. "
+                f"Olet jo ääntellyt miettimistä, joten älä aloita sanoilla hmm, hetkinen tai mietitään.)")
 
     def _system(self) -> str:
         now = time.localtime()
@@ -49,7 +68,7 @@ class Brain:
                 self.history, self.session = [], f"furby-{int(time.time())}"
             self.last = time.time()
             msgs = [{"role": "system", "content": self._system()}, *self.history[-2 * self.keep:],
-                    {"role": "user", "content": text}]
+                    {"role": "user", "content": f"{text}\n\n{self._next_style()}"}]   # the style rides on this turn only
             body = {"model": self.model, "stream": True, "max_tokens": 400, "messages": msgs}
             req = urllib.request.Request(
                 f"{self.base}/chat/completions", data=json.dumps(body).encode(),

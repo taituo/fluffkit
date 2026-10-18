@@ -339,7 +339,9 @@ $("sayBtn").onclick = () => busy($("sayBtn"), "…", async () => {
 $("say").onkeydown = (e) => { if (e.key === "Enter") $("sayBtn").click(); };
 
 // sounds Furby needs instantly. Kept in Cache Storage per voice, so each line is made once, not on every load.
-let FILLER_TEXTS = ["Ooh!", "Hups!", "Hmm!"], FILLER_BEAK = true;
+// fillers: {text, weight, kind: "hum" | "word"}; weighted, no repeats, and no "Hetkinen!" right after a "hmm"
+let FILLERS = [{ text: "Hmm…", weight: 1, kind: "hum" }], FILLER_BEAK = true, NO_WORD_AFTER_HUM_S = 30, AVOID_LAST = 4;
+const fillerMemo = { recent: [], lastKind: "", lastAt: 0 };
 let LAUGH_PROMPT = "goofy deep belly laugh of a silly cartoon creature, bouncy and joyful";
 let ANTENNA = { idle: [0, 0, 40], listening: [0, 255, 40], thinking: [255, 170, 0], speaking: [255, 0, 150] };
 const ready = { fillers: [], laugh: null };
@@ -356,8 +358,8 @@ async function cached(key, make) {
 async function prepareSounds() {
   if (!store.get("key", "")) return;
   const tag = `/v/${VOICE}/${TTS_MODEL}/${TTS_STAB}/${TTS_SPEED}/`;
-  ready.fillers = (await Promise.all(FILLER_TEXTS.map((t) =>
-    cached(tag + encodeURIComponent(t), () => tts(t)).catch(() => null)))).filter(Boolean);
+  ready.fillers = (await Promise.all(FILLERS.map((f) =>
+    cached(tag + encodeURIComponent(f.text), () => tts(f.text)).then((blob) => ({ ...f, blob })).catch(() => null)))).filter(Boolean);
   ready.laugh = await cached("/sfx/" + encodeURIComponent(LAUGH_PROMPT), () => sfx(LAUGH_PROMPT, 1.5)).catch(() => null);
 }
 
@@ -371,13 +373,27 @@ function antenna(state) {
 }
 const restingColour = () => antenna(VAD.on ? "listening" : "idle");
 
+function pickFiller() {
+  const now = Date.now();
+  let pool = ready.fillers.filter((f) => !fillerMemo.recent.includes(f.text));
+  if (fillerMemo.lastKind === "hum" && now - fillerMemo.lastAt < NO_WORD_AFTER_HUM_S * 1000) pool = pool.filter((f) => f.kind === "hum");
+  if (!pool.length) pool = ready.fillers.filter((f) => f.kind === "hum");
+  if (!pool.length) return null;
+  let r = Math.random() * pool.reduce((s, f) => s + (f.weight || 1), 0);
+  const f = pool.find((x) => (r -= (x.weight || 1)) <= 0) || pool[pool.length - 1];
+  fillerMemo.recent = [f.text, ...fillerMemo.recent].slice(0, AVOID_LAST);
+  fillerMemo.lastKind = f.kind; fillerMemo.lastAt = now;
+  return f;
+}
+
 // the moment the child stops talking: thinking colour plus a short "hmm" with a quick beak flap
 let thinkingNow = false;
 async function thinking() {
   antenna("thinking");
-  if (!ready.fillers.length) return;
+  const f = pickFiller();
+  if (!f) return;
   thinkingNow = true;
-  try { await play(pick(ready.fillers), FILLER_BEAK ? "speech" : "raw"); } finally { thinkingNow = false; }
+  try { await play(f.blob, FILLER_BEAK ? "speech" : "raw"); } finally { thinkingNow = false; }
 }
 
 // split the streamed answer into sentences and [tags]; a segment is ready once it is followed by whitespace
@@ -385,7 +401,11 @@ const TAG = /\[(liike|nauru|efekti:[^\]]*)\]/gi;
 function takeSegments(state, final) {
   const out = [];
   for (;;) {
-    const m = state.buf.match(/^\s*([\s\S]*?(?:[.!?…]+|\]))(\s+)/);
+    // a sentence end (or a [tag]); a long sentence is also cut at its first pause (, ; : —) after 40 chars,
+    // so the first words start sooner and the rhythm follows the pauses
+    const s = state.buf.match(/^\s*([\s\S]*?(?:[.!?…]+|\]))(\s+)/);
+    const c = state.buf.match(/^\s*([^.!?…\]]{40,}?[,;:—–])(\s+)/);
+    const m = c && (!s || c[0].length < s[0].length) ? c : s;
     if (!m) break;
     out.push(m[1]); state.buf = state.buf.slice(m[0].length);
   }
@@ -602,8 +622,12 @@ function applyConfig(c) {
   if (l.silence_ms) VAD_SILENCE_MS = l.silence_ms;
   if (l.start_ms) VAD_START_MS = l.start_ms;
   if (l.max_ms) VAD_MAX_MS = l.max_ms;
-  if (c.fillers && c.fillers.texts) FILLER_TEXTS = c.fillers.texts;
-  if (c.fillers && c.fillers.beak != null) FILLER_BEAK = c.fillers.beak;
+  const fl = c.fillers || {};
+  if (fl.items) FILLERS = fl.items;
+  else if (fl.texts) FILLERS = fl.texts.map((text) => ({ text, weight: 1, kind: "hum" }));
+  if (fl.beak != null) FILLER_BEAK = fl.beak;
+  if (fl.no_word_after_hum_s != null) NO_WORD_AFTER_HUM_S = fl.no_word_after_hum_s;
+  if (fl.avoid_last != null) AVOID_LAST = fl.avoid_last;
   if (c.laugh) LAUGH_PROMPT = c.laugh;
   if (c.antenna) Object.assign(ANTENNA, c.antenna);
 }
