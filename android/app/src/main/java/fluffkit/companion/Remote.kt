@@ -37,6 +37,7 @@ object Commands {
     }
 
     fun state(c: FurbyCompanion): JSONObject = JSONObject()
+        .put("version", App.instance.version)
         .put("furby", c.furby.state.name.lowercase())
         .put("service", CompanionService.running)
         .put("listening", c.listener.on)

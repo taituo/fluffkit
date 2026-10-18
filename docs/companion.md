@@ -187,6 +187,9 @@ moves them into EncryptedSharedPreferences and deletes the file.
 cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew assembleDebug
 ```
 ```bash
+android/release.sh
+```
+```bash
 python3 android/furby_remote.py setup --eleven-key-file ~/11labs.md
 ```
 ```bash
@@ -208,8 +211,9 @@ Measured on the Poco F1 (2026-10-18): Scribe 0.6 s, Muse Spark (`/v1/responses`,
 Lessons from the Poco F1 (MIUI, Android 10):
 
 - `adb install` and `pm install` fail with `INSTALL_FAILED_USER_RESTRICTED` and `adb shell input` is refused until
-  Developer options → "Install via USB" / "USB debugging (Security settings)" are on. Without them, push the APK
-  to `/sdcard/Download` and tap it in File Manager.
+  Developer options → "Install via USB" / "USB debugging (Security settings)" are on. Without them,
+  `android/release.sh` bumps the version (shown on screen and in `/status`), runs `SelfTest` on the phone and leaves
+  one `/sdcard/Download/furby-companion-<version>.apk` to tap in File Manager.
 - Android's ICU regex rejects Java's inline `(?U)`; `\w` and `\b` are Unicode there already. Before asking for an
   install, run the app's own checks on the phone without installing:
   `adb push app-debug.apk /data/local/tmp/furby.apk && adb shell CLASSPATH=/data/local/tmp/furby.apk app_process / fluffkit.companion.SelfTest`.

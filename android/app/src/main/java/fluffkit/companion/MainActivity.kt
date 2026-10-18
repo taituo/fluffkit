@@ -155,7 +155,7 @@ class MainActivity : Activity() {
             }
             val mic = when { !CompanionService.running -> "pysäytetty"; !c.listener.on -> "mikki pois"; c.busy -> "miettii"
                 c.listener.recording -> "kuulee puhetta"; else -> "kuuntelee" }
-            state.text = "Furby $f · $mic"
+            state.text = "Furby $f · $mic\nversio ${app.version}"
             level.progress = (c.listener.level / 0.15f * 1000).toInt().coerceAtMost(1000)
             listenBtn.text = if (c.listener.on) "👂 Kuuntelee — paina: pois" else "🔇 Ei kuuntele — paina: päälle"
             (listenBtn.background as GradientDrawable).setColor(if (c.listener.on) 0xFF1F8A4C.toInt() else 0xFF8A1F2C.toInt())

@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -24,6 +25,9 @@ val copyPhoneAssets = tasks.register<CopyPhoneAssets>("copyPhoneAssets") {
     sources.from(File(phone, "furby-config.json"), File(phone, "packs.json"), File(phone, "furby-agent/AGENTS.md"))
 }
 
+// bumped by release.sh for every APK that goes to the phone, so versions can be told apart
+val version = Properties().apply { rootProject.file("version.properties").inputStream().use { load(it) } }
+
 android {
     namespace = "fluffkit.companion"
     compileSdk = 36
@@ -32,8 +36,8 @@ android {
         applicationId = "fluffkit.companion"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = version.getProperty("code").toInt()
+        versionName = version.getProperty("name")
     }
     buildTypes {
         release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("debug") }

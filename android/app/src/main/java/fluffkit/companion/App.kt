@@ -13,9 +13,12 @@ class App : Application() {
     lateinit var settings: Settings
     lateinit var companion: FurbyCompanion
 
+    val version: String by lazy { packageManager.getPackageInfo(packageName, 0).versionName ?: "?" }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
+        Log.i("Furby companion $version")
         settings = Settings(this)
         settings.importFromFile()
         companion = FurbyCompanion(this, settings)
