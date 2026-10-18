@@ -284,7 +284,7 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         delay(800)
         prepareSounds()                                     // fillers in the new voice before the greeting
         antennaNow = ""
-        chat("(Olet nyt ${p.name}. Esittäydy lapselle lyhyesti.)", hidden = true)
+        chat("(Olet nyt ${p.name}. Esittäydy lapselle lyhyesti omalla kielelläsi.)", hidden = true)   // no style draw
     }
 
     // ---- one turn ----
@@ -338,7 +338,7 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
             val buf = StringBuilder()
             var first = true
             try {
-                val answer = brain.ask(text, if (sleeping) "Furby nukkuu nyt." else "") { piece ->
+                val answer = brain.ask(text, if (sleeping) "Furby nukkuu nyt." else "", style = !hidden) { piece ->
                     if (first) {
                         first = false
                         val ms = System.currentTimeMillis() - t0

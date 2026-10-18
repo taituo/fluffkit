@@ -45,7 +45,7 @@ class Brain(private val settings: Settings, private val config: () -> Config) {
 
     fun reset() { history.clear() }
 
-    suspend fun ask(text: String, context: String = "", onChunk: (String) -> Unit): String = lock.withLock {
+    suspend fun ask(text: String, context: String = "", style: Boolean = true, onChunk: (String) -> Unit): String = lock.withLock {
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
             if (now - last > idleResetMs) { history.clear(); session = "furby-${now / 1000}" }   // a new play session starts fresh
@@ -54,7 +54,7 @@ class Brain(private val settings: Settings, private val config: () -> Config) {
             history.takeLast(2 * keep).forEach { msgs.put(it) }
             // state and style ride on this turn only; the history keeps the child's own words
             val extra = if (context.isNotEmpty()) "$context " else ""
-            msgs.put(JSONObject().put("role", "user").put("content", "$text\n\n$extra${nextStyle()}"))
+            msgs.put(JSONObject().put("role", "user").put("content", if (style) "$text\n\n$extra${nextStyle()}" else "$text $extra".trim()))
             val responses = settings.llmApi == "responses"
             val body = JSONObject().put("model", settings.llmModel).put("stream", true)
             if (responses) {

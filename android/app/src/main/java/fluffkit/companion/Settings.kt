@@ -196,15 +196,28 @@ class Config(j: JSONObject) {
     val threshold: Float? = if (listen.has("threshold")) listen.getDouble("threshold").toFloat() else null
 
     private val fillers = j.optJSONObject("fillers") ?: JSONObject()
-    // {text, weight, kind: "hum" | "word"}; the older "texts" list counts as hums of weight 1
-    val fillerItems: List<Filler> = fillers.optJSONArray("items")?.let { a ->
-        List(a.length()) { a.getJSONObject(it).let { f -> Filler(f.getString("text"), f.optDouble("weight", 1.0), f.optString("kind", "hum")) } }
-    } ?: fillers.optJSONArray("texts")?.let { a -> List(a.length()) { Filler(a.getString(it), 1.0, "hum") } }
-        ?: listOf(Filler("Hmm…", 1.0, "hum"))
+    // {text, weight, kind: "hum" | "word"}; the older "texts" list counts as hums of weight 1.
+    // Order: the persona's own fillers, then English ones for a non-Finnish voice, then "fillers" of the config.
+    val fillerItems: List<Filler> = run {
+        fun items(a: JSONArray?) = a?.let { List(it.length()) { i -> it.getJSONObject(i).let { f ->
+            Filler(f.getString("text"), f.optDouble("weight", 1.0), f.optString("kind", "hum")) } } }
+        val own = j.optJSONObject("personas")?.optJSONObject(personaId ?: "")?.let { p ->
+            p.optJSONArray("fillers") ?: p.optJSONObject("fillers")?.optJSONArray("items") }
+        items(own) ?: if (ttsLang != "fi") ENGLISH_FILLERS
+        else items(fillers.optJSONArray("items"))
+            ?: fillers.optJSONArray("texts")?.let { a -> List(a.length()) { Filler(a.getString(it), 1.0, "hum") } }
+            ?: listOf(Filler("Hmm…", 1.0, "hum"))
+    }
     val noWordAfterHumS: Int = fillers.optInt("no_word_after_hum_s", 30)
     val avoidLast: Int = fillers.optInt("avoid_last", 4)
     val fillerBeak: Boolean = fillers.optBoolean("beak", true)
-    val laugh: String = j.optString("laugh", "goofy deep belly laugh of a silly cartoon creature, bouncy and joyful")
+    val laugh: String = j.optJSONObject("personas")?.optJSONObject(personaId ?: "")?.optString("laugh")?.takeIf { it.isNotBlank() }
+        ?: j.optString("laugh", "goofy deep belly laugh of a silly cartoon creature, bouncy and joyful")
+
+    companion object {
+        val ENGLISH_FILLERS = listOf(Filler("Hmmm…", 6.0, "hum"), Filler("Mmm…", 6.0, "hum"),
+            Filler("Let me think…", 3.0, "word"), Filler("Interesting…", 3.0, "word"), Filler("Yes…", 2.0, "word"))
+    }
 
     val antenna: Map<String, ByteArray> = buildMap {
         put("idle", byteArrayOf(0, 0, 40)); put("listening", byteArrayOf(0, 255.toByte(), 40))

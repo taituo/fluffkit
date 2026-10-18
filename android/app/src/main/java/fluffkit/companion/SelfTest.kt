@@ -52,6 +52,10 @@ object SelfTest {
         check("persona match", c.matchPersona(two, " Urhoon") == "urho" && c.matchPersona(two, "Seliannelle") == "selianne" &&
             c.matchPersona(two, "URHO") == "urho" && c.matchPersona(two, "Pekka") == null)
         check("persona tag", c.TAG.find("Hei hei! [persoona: Urho]")?.groupValues?.get(1) == "persoona: Urho")
+        val en = Config(JSONObject("""{"persona":"darth","personas":{"darth":{"name":"Darth","voice":{"id":"x","language":"en"}}}}"""))
+        check("english fillers", en.ttsLang == "en" && en.fillerItems.any { it.text == "Let me think…" }, en.fillerItems.map { it.text })
+        val own = Config(JSONObject("""{"persona":"u","personas":{"u":{"fillers":[{"text":"Öhö","kind":"hum"}]}}}"""))
+        check("persona fillers", own.fillerItems.single().text == "Öhö")
         println(if (failed == 0) "ALL OK" else "$failed FAILED")
     }
 }
