@@ -176,7 +176,10 @@ rainbow) plus a subtitle mode that shows in large text what was heard and what U
 
 The persona, `furby-config.json` and `packs.json` are copied from `phone/` into the APK at build time
 (`packs.json` is gitignored: build where it exists; `-PphoneDir=…` builds with another checkout's `phone/`),
-and can be replaced at run time with `furby_remote.py push`. `listen.threshold` in the config sets the mic level.
+and can be replaced at run time with `furby_remote.py push`. Personas (`personas/<id>.md` + `common.md`, voice and
+wake words under `personas` in the config) are bundled too; the persona chips on the main screen and
+`/persona` switch like `tools/persona.py`, and the wake call follows the persona's wake words. Furby's sensor
+packets (`21 …`) are logged when they change and shown as `sensor` in `/status`, for decoding the antenna. `listen.threshold` in the config sets the mic level.
 
 Keys never go into the repo, the APK or the log. `furby_remote.py setup` pushes them over adb as
 `files/secrets.json` (ElevenLabs key from a file you name, gateway bearer from
@@ -201,8 +204,8 @@ python3 android/furby_remote.py chat "Kerro vitsi"
 
 Remote API (`Authorization: Bearer <token>`, `http://<phone>:8770` on the LAN or via `adb forward`):
 `GET /status`, `GET /log`, `POST /say {text}`, `/chat {text}`, `/sleep`, `/wake`, `/trick {name}`,
-`/light {colour | "vilkku"}`, `/listen {on}`, `/config` (reload), `/connect`, `/cmd {cmd, text}`,
-`PUT /file/<furby-config.json | AGENTS.md | packs.json>`, `POST /secrets {…}`. The same commands work over adb:
+`/light {colour | "vilkku"}`, `/listen {on}`, `/persona {name}`, `/config` (reload), `/connect`, `/cmd {cmd, text}`,
+`PUT /file/<furby-config.json | AGENTS.md | packs.json | common.md | personas/<id>.md>`, `POST /secrets {…}`. The same commands work over adb:
 `adb shell am broadcast -a fluffkit.companion.DEBUG --es cmd say --es text "Hei"` (shell-only receiver).
 
 Measured on the Poco F1 (2026-10-18): Scribe 0.6 s, Muse Spark (`/v1/responses`, effort minimal, through

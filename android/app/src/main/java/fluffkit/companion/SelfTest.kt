@@ -41,6 +41,12 @@ object SelfTest {
         check("meter scale", kotlin.math.abs(v - 0.02f) < 0.0005f, v)
         check("classes load", listOf("MainActivity", "FurbyView", "Remote", "CompanionService").all {
             runCatching { Class.forName("fluffkit.companion.$it") }.isSuccess })
+        val pc = Config(JSONObject("""{"persona":"selianne","voice":{"id":"a","speed":1.0},
+            "personas":{"selianne":{"name":"Selianne","wake":["selianne","sel"],"voice":{"id":"b"}}}}"""))
+        val (wr, ww) = c.wakeRegexes(pc)
+        check("persona voice", pc.voiceId == "b" && pc.speed == 1.0, pc.voiceId)
+        check("persona wake", wr.containsMatchIn("Herää Selianne") && !wr.containsMatchIn("Moi Urho"))
+        check("persona bare wake", "Selianne herää!".replace(ww, " ").replace(Regex("[^a-zåäö ]", RegexOption.IGNORE_CASE), " ").isBlank())
         println(if (failed == 0) "ALL OK" else "$failed FAILED")
     }
 }

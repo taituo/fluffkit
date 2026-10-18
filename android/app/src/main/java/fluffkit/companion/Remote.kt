@@ -13,7 +13,8 @@ import kotlin.concurrent.thread
 
 /** The commands the remote, the adb receiver and the buttons share. Returns a short status. */
 object Commands {
-    val FILES = setOf("furby-config.json", "AGENTS.md", "packs.json")
+    val FILES = setOf("furby-config.json", "AGENTS.md", "packs.json", "common.md")
+    fun allowedFile(name: String) = name in FILES || Regex("personas/[a-z0-9_-]+\\.md").matches(name)
 
     fun run(c: FurbyCompanion, cmd: String, text: String = ""): String {
         when (cmd) {
@@ -28,6 +29,7 @@ object Commands {
             "wake" -> c.scope.launch { c.wakeFurby() }
             "reload" -> c.reload()
             "forget" -> c.brain.reset()
+            "persona" -> c.switchPersona(text.trim())
             "rescan" -> c.furby.rescan()
             "connect" -> c.furby.start()
             "hear" -> c.hear(File(c.settings.dir, text).readBytes())
@@ -53,6 +55,9 @@ object Commands {
         .put("heard", c.heard)
         .put("saying", c.saying)
         .put("pack", c.packName)
+        .put("persona", c.cfg.personaId ?: "")
+        .put("personas", org.json.JSONArray(c.cfg.personas.keys.toList()))
+        .put("sensor", c.furby.sensor)
 }
 
 /**
@@ -123,6 +128,7 @@ class Remote(private val c: FurbyCompanion) {
                         "/light" -> j.optString("colour", j.optString("color")).let {
                             Commands.run(c, "tag", if (it == "vilkku") "vilkku" else "valo: $it") }
                         "/listen" -> Commands.run(c, "listen", if (j.optBoolean("on", true)) "on" else "off")
+                        "/persona" -> Commands.run(c, "persona", j.optString("name", j.optString("id")))
                         "/config" -> Commands.run(c, "reload")
                         else -> Commands.run(c, "connect")
                     }
@@ -130,9 +136,9 @@ class Remote(private val c: FurbyCompanion) {
                 }
                 method == "PUT" && path.startsWith("/file/") -> {
                     val name = path.removePrefix("/file/")
-                    if (name !in Commands.FILES) return reply(sock, 400, "allowed: ${Commands.FILES}")
+                    if (!Commands.allowedFile(name)) return reply(sock, 400, "allowed: ${Commands.FILES}, personas/<id>.md")
                     if (name.endsWith(".json")) String(body).trim().let { if (it.startsWith("[")) org.json.JSONArray(it) else JSONObject(it) }
-                    File(c.settings.dir, name).writeBytes(body)
+                    File(c.settings.dir, name).apply { parentFile?.mkdirs() }.writeBytes(body)
                     c.reload()
                     reply(sock, 200, "saved $name")
                 }
@@ -169,6 +175,6 @@ class Remote(private val c: FurbyCompanion) {
 
     companion object {
         const val PORT = 8770
-        val SHORT = setOf("/say", "/chat", "/sleep", "/wake", "/trick", "/light", "/listen", "/config", "/connect")
+        val SHORT = setOf("/say", "/chat", "/sleep", "/wake", "/trick", "/light", "/listen", "/config", "/connect", "/persona")
     }
 }

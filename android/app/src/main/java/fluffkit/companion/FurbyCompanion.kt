@@ -29,7 +29,7 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val furby = Furby(ctx, settings)
     private val eleven = Eleven(settings, ctx.cacheDir)
-    val brain = Brain(settings)
+    val brain = Brain(settings) { cfg }
     private val voiceCache = File(ctx.filesDir, "voice")
 
     @Volatile var cfg: Config = settings.config(); private set
@@ -266,6 +266,19 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         return clip
     }
 
+    /** Switch persona like tools/persona.py, then introduce the new one in its own voice. */
+    fun switchPersona(id: String) {
+        val p = cfg.personas[id] ?: run { Log.i("tuntematon persoona $id"); return }
+        settings.switchPersona(id)
+        brain.reset()
+        reload()
+        Log.i("persoona: ${p.name}")
+        furby.send(byteArrayOf(0x14, android.graphics.Color.red(p.colour).toByte(), android.graphics.Color.green(p.colour).toByte(),
+            android.graphics.Color.blue(p.colour).toByte()))
+        antennaNow = "persona"
+        scope.launch { speak("Hei, minä olen ${p.name}!"); delay(300); antennaNow = ""; restingColour() }
+    }
+
     // ---- one turn ----
 
     private class Segment(val tags: List<Pair<String, Deferred<Clip?>?>>, val words: String, val speech: Deferred<Clip?>?)
@@ -299,9 +312,10 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
         heard = text; saying = ""
         busy = true
         // waking Furby must not depend on the model: Scribe heard "Herää Urho" as "Tää Urho" / "Jaa urho?"
-        if (sleeping && WAKE_RE.containsMatchIn(text)) {
+        val (wakeRe, wakeWords) = wakeRegexes(cfg)
+        if (sleeping && wakeRe.containsMatchIn(text)) {
             wakeFurby()                                         // Furby's own wake-up line is the answer...
-            val rest = text.replace(WAKE_WORDS, " ").replace(Regex("[^a-zåäö ]", RegexOption.IGNORE_CASE), " ").trim()
+            val rest = text.replace(wakeWords, " ").replace(Regex("[^a-zåäö ]", RegexOption.IGNORE_CASE), " ").trim()
             if (rest.split(Regex("\\s+")).count { it.length > 1 } < 2) {   // ...unless the child said more than "herää Urho"
                 quietUntil = System.currentTimeMillis() + 400; busy = false
                 return
@@ -370,6 +384,16 @@ class FurbyCompanion(ctx: Context, val settings: Settings) {
     companion object {
         val TAG = Regex("\\[(liike|nauru|nukkumaan|herää|tanssi|korvat|pieru|röyhtäys|hikka|furbylaulu|beatbox|vilkku|valo:[^\\]]*|efekti:[^\\]]*)\\]",
             RegexOption.IGNORE_CASE)
+        private fun alt(words: List<String>) = words.joinToString("|") { Regex.escape(it.lowercase()) }
+
+        /** Wake call (persona's wake words + generic) and the words a bare wake call consists of. */
+        fun wakeRegexes(cfg: Config): Pair<Regex, Regex> {
+            val names = (cfg.persona?.wake ?: listOf("urho")).filter { it.isNotBlank() }
+            val n = if (names.isEmpty()) "" else alt(names) + "|"
+            return Regex("\\b(${n}her[äa]{1,2}|herätys|huomen|huomenta|aamu|nouse|wake)", RegexOption.IGNORE_CASE) to
+                Regex("\\b(${n}her[äa]+\\w*|herätys|huomen\\w*|aamu\\w*|nouse|wake|hei|tää|jaa|no|nyt|jo)\\b", RegexOption.IGNORE_CASE)
+        }
+
         val WAKE_WORDS = Regex("\\b(urho|her[äa]+\\w*|herätys|huomen\\w*|aamu\\w*|nouse|wake|hei|tää|jaa|no|nyt|jo)\\b", RegexOption.IGNORE_CASE)
         val WAKE_RE = Regex("\\b(urho|her[äa]{1,2}|herätys|huomen|huomenta|aamu|nouse|wake)", RegexOption.IGNORE_CASE)
 

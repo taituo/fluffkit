@@ -58,6 +58,8 @@ class MainActivity : Activity() {
     private lateinit var subHeard: TextView
     private lateinit var subSaying: TextView
     private var logView: TextView? = null
+    private lateinit var personaRow: LinearLayout
+    private var personaKeys = ""
     private var subtitles = false
     private val logListener = { refreshLog() }
 
@@ -114,7 +116,7 @@ class MainActivity : Activity() {
 
         // title row
         val title = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(px(22), px(4), px(16), px(4)) }
-        title.addView(text("Urho", 34f, Color.WHITE, true))
+        title.addView(text("Furby", 34f, Color.WHITE, true))
         title.addView(text("  v${app.version}", 13f, 0xCCFFFFFF.toInt()), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         title.addView(text("⚙", 26f, Color.WHITE).apply {
             gravity = Gravity.CENTER; background = rounded(0x33FFFFFF, 24); setPadding(px(12), px(4), px(12), px(4))
@@ -129,6 +131,10 @@ class MainActivity : Activity() {
             chips.addView(it, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { setMargins(px(4), 0, px(4), 0) })
         }
         col.addView(chips)
+
+        // persona switcher: one chip per persona, in its colour
+        personaRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(px(16), px(4), px(16), px(2)) }
+        col.addView(personaRow)
 
         // the Furby + subtitles
         val hero = card(col, 10)
@@ -246,6 +252,17 @@ class MainActivity : Activity() {
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    private fun buildPersonas() {
+        personaRow.removeAllViews()
+        for (p in c.cfg.personas.values) {
+            personaRow.addView(text(p.name, 16f, Color.WHITE, true).apply {
+                tag = p.id; gravity = Gravity.CENTER
+                background = rounded(p.colour, 22); setPadding(px(18), px(8), px(18), px(8)); elevation = px(3).toFloat()
+                setOnClickListener { if (c.cfg.personaId != p.id) c.switchPersona(p.id) }
+            }, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { setMargins(px(5), 0, px(5), 0) })
+        }
+    }
+
     // ---- live state ----
 
     private fun chipColour(v: TextView, ok: Boolean?) {
@@ -271,6 +288,12 @@ class MainActivity : Activity() {
                 FurbyCompanion.Mood.IDLE -> "Lepää"; FurbyCompanion.Mood.LISTENING -> "Kuuntelee…"
                 FurbyCompanion.Mood.HEARING -> "Kuulee sinua!"; FurbyCompanion.Mood.THINKING -> "Miettii…"
                 FurbyCompanion.Mood.SPEAKING -> "Puhuu"; FurbyCompanion.Mood.SLEEPING -> "Nukkuu, zzz…"
+            }
+            val keys = c.cfg.personas.keys.joinToString()
+            if (keys != personaKeys) { personaKeys = keys; buildPersonas() }
+            for (i in 0 until personaRow.childCount) personaRow.getChildAt(i).let { v ->
+                val on = v.tag == c.cfg.personaId
+                v.alpha = if (on) 1f else 0.55f; v.scaleX = if (on) 1.08f else 1f; v.scaleY = v.scaleX
             }
             heardText.text = c.heard.takeIf { it.isNotEmpty() }?.let { "“$it”" } ?: ""
             sayingText.text = c.saying

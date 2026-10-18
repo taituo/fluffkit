@@ -93,7 +93,27 @@ class Settings(private val ctx: Context) {
         return if (f.exists()) f.readText() else ctx.assets.open(name).bufferedReader().readText()
     }
 
-    fun persona(): String = text("AGENTS.md")
+    private fun exists(name: String) = File(dir, name).exists() ||
+        runCatching { ctx.assets.open(name).close() }.isSuccess
+
+    /** The system prompt: personas/<persona>.md + common.md when the config names a persona, else AGENTS.md. */
+    fun persona(cfg: Config): String {
+        val id = cfg.personaId
+        if (id != null && exists("personas/$id.md") && exists("common.md"))
+            return text("personas/$id.md").trimEnd() + "\n\n" + text("common.md")
+        return text("AGENTS.md")
+    }
+
+    /** What tools/persona.py does: name the persona in the device's furby-config.json and copy its voice there. */
+    fun switchPersona(id: String) {
+        val f = File(dir, "furby-config.json")
+        val over = if (f.exists()) JSONObject(f.readText()) else JSONObject()
+        val voice = config().personas[id]?.voice ?: JSONObject()
+        val merged = over.optJSONObject("voice") ?: JSONObject()
+        for (k in voice.keys()) merged.put(k, voice.get(k))
+        over.put("persona", id).put("voice", merged)
+        f.writeText(over.toString(2))
+    }
 
     fun packs(): JSONArray = try { JSONArray(text("packs.json")) } catch (e: Exception) { Log.i("packs.json: ${e.message}"); JSONArray() }
 
@@ -115,9 +135,29 @@ class Settings(private val ctx: Context) {
 
 class Filler(val text: String, val weight: Double, val kind: String)
 
+class Persona(val id: String, val name: String, val wake: List<String>, val voice: JSONObject, val colour: Int)
+
 /** furby-config.json, with the same defaults as phone/index.html. */
 class Config(j: JSONObject) {
-    private val voice = j.optJSONObject("voice") ?: JSONObject()
+    val personas: Map<String, Persona> = buildMap {
+        val ps = j.optJSONObject("personas") ?: JSONObject()
+        val palette = listOf(0xFFFF3D9A, 0xFF9B5DE5, 0xFF22B573, 0xFFFF9F1C, 0xFF3A86FF).map { it.toInt() }
+        var n = 0
+        for (k in ps.keys()) {
+            val o = ps.getJSONObject(k)
+            val wake = o.optJSONArray("wake")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList()
+            val colour = o.optJSONArray("colour")?.let { android.graphics.Color.rgb(it.optInt(0), it.optInt(1), it.optInt(2)) }
+                ?: palette[n % palette.size]
+            put(k, Persona(k, o.optString("name", k), wake, o.optJSONObject("voice") ?: JSONObject(), colour)); n++
+        }
+    }
+    val personaId: String? = j.optString("persona").takeIf { it.isNotBlank() }
+    val persona: Persona? = personaId?.let { personas[it] }
+
+    // the persona's voice wins over "voice", so a config that only names the persona still sounds right
+    private val voice = (j.optJSONObject("voice") ?: JSONObject()).also { v ->
+        persona?.voice?.let { pv -> for (k in pv.keys()) v.put(k, pv.get(k)) }
+    }
     val voiceId: String = voice.optString("id", "TOQpwiUO86jXKNDkdC31")
     val ttsModel: String = voice.optString("model", "eleven_flash_v2_5")
     val ttsLang: String = voice.optString("language", "fi")

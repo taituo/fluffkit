@@ -32,6 +32,10 @@ class Furby(private val ctx: Context, private val settings: Settings) {
         private set(v) { field = v; onState(v) }
     var onState: (State) -> Unit = {}
     var onSequenceEnded: () -> Unit = {}
+    /** Last 0x21 sensor packet (antenna, tilt…) as hex; logged when it changes, for decoding. */
+    @Volatile var sensor = ""; private set
+    var onSensor: (ByteArray) -> Unit = {}
+    private var sensorLogged = 0L
 
     /** Off while Furby sleeps: without 20 06 it may doze, and the link stays up for the wake-up action. */
     @Volatile var keepaliveOn = true
@@ -187,7 +191,16 @@ class Furby(private val ctx: Context, private val settings: Settings) {
     }
 
     private fun notified(d: ByteArray) {
-        if (d.isEmpty() || d[0] == 0x21.toByte() || d[0] == 0x22.toByte()) return      // sensors / keepalive status
+        if (d.isEmpty() || d[0] == 0x22.toByte()) return                               // keepalive status
+        if (d[0] == 0x21.toByte()) {                                                    // sensors
+            val hx = hex(d)
+            if (hx != sensor) {
+                sensor = hx; onSensor(d)
+                val now = System.currentTimeMillis()
+                if (now - sensorLogged > 200) { sensorLogged = now; Log.i("anturi $hx") }      // at most 5 lines a second
+            }
+            return
+        }
         if (d[0] == 0x20.toByte() && d.size > 1 && d[1] == 0x0e.toByte()) onSequenceEnded()
         val msg = if (d[0] == 0x20.toByte() && d.size > 1) MSG[d[1].toInt() and 0xff] ?: "" else ""
         Log.i("← ${hex(d)}  $msg")

@@ -5,7 +5,7 @@
     python3 android/furby_remote.py push                                   # phone/ config + persona + packs
     python3 android/furby_remote.py say "Hei, minä olen Urho!"
     python3 android/furby_remote.py chat "Kerro tarina dinosauruksesta"
-    python3 android/furby_remote.py sleep | wake | tag tanssi | listen off | state | log
+    python3 android/furby_remote.py sleep | wake | tag tanssi | listen off | persona selianne | state | log
 
 `setup` pushes the keys as secrets.json over adb (the app imports them into EncryptedSharedPreferences and
 deletes the file), with a remote token kept in ~/.config/fluffkit/companion_token, and forwards port 8770.
@@ -104,7 +104,7 @@ def main() -> None:
     s.add_argument("--no-reverse", dest="reverse_gateway", action="store_false")
     sub.add_parser("push", help="upload phone/furby-config.json, AGENTS.md and packs.json")
     sub.add_parser("state"); sub.add_parser("log")
-    for name in ("say", "chat", "tag", "act", "antenna", "listen", "threshold", "hear"):
+    for name in ("say", "chat", "tag", "act", "antenna", "listen", "threshold", "hear", "persona"):
         sub.add_parser(name).add_argument("text", nargs="+")
     for name in ("sleep", "wake", "reload", "forget", "rescan"):
         sub.add_parser(name)
@@ -113,8 +113,11 @@ def main() -> None:
     if a.what == "setup":
         setup(a)
     elif a.what == "push":
-        for local, name in ((PHONE / "furby-config.json", "furby-config.json"),
-                            (PHONE / "furby-agent" / "AGENTS.md", "AGENTS.md"), (PHONE / "packs.json", "packs.json")):
+        agent = PHONE / "furby-agent"
+        files = [(PHONE / "furby-config.json", "furby-config.json"), (agent / "AGENTS.md", "AGENTS.md"),
+                 (PHONE / "packs.json", "packs.json"), (agent / "common.md", "common.md")]
+        files += [(f, f"personas/{f.name}") for f in sorted((agent / "personas").glob("*.md"))]
+        for local, name in files:
             if local.exists():
                 print(call(a, "PUT", f"/file/{name}", local.read_bytes()))
     elif a.what == "state":

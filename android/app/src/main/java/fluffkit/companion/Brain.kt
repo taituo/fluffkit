@@ -15,7 +15,7 @@ import java.util.Calendar
  * the persona is the system prompt with the time of day appended, the history lives here (12 turns, reset after
  * 30 min idle), and the answer streams token by token.
  */
-class Brain(private val settings: Settings) {
+class Brain(private val settings: Settings, private val config: () -> Config) {
     private val keep = 12
     private val idleResetMs = 30 * 60 * 1000L
     private val history = mutableListOf<JSONObject>()
@@ -40,7 +40,7 @@ class Brain(private val settings: Settings) {
         val h = c.get(Calendar.HOUR_OF_DAY)
         val wd = WEEKDAYS[(c.get(Calendar.DAY_OF_WEEK) + 5) % 7]      // Calendar: Sunday = 1
         val m = "%02d".format(c.get(Calendar.MINUTE))
-        return settings.persona() + "\n\n## Nyt\n\nKello on $h.$m, $wd, ${dayPart(h)}.\n"
+        return settings.persona(config()) + "\n\n## Nyt\n\nKello on $h.$m, $wd, ${dayPart(h)}.\n"
     }
 
     fun reset() { history.clear() }
