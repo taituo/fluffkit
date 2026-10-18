@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#d6338a">
+<title>Furby Companion</title>
+<style>
+  :root {
+    --bg: #faf7fb; --panel: #ffffff; --ink: #231a2b; --muted: #75697f; --line: #e7dfec;
+    --accent: #d6338a; --accent-ink: #ffffff; --ok: #1f8a4c; --warn: #b7791f; --bad: #c53030;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17121b; --panel: #211a27; --ink: #f1e9f5; --muted: #a596b0; --line: #352b3d;
+      --accent: #ff5cab; --accent-ink: #1a0f17; --ok: #48bb78; --warn: #ecc94b; --bad: #fc8181;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--panel);
+           border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+  h1 { font-size: 18px; margin: 0; flex: 1; }
+  .pill { font-size: 13px; padding: 3px 10px; border-radius: 99px; border: 1px solid currentColor; }
+  .connected { color: var(--ok); } .searching { color: var(--warn); } .disconnected { color: var(--bad); }
+  main { padding: 12px 16px 40px; display: grid; gap: 14px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input, select, button { font: inherit; border-radius: 10px; border: 1px solid var(--line);
+                          background: var(--bg); color: var(--ink); padding: 10px 12px; }
+  input { flex: 1; min-width: 0; }
+  button { cursor: pointer; }
+  button.main { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .grid button { text-align: left; min-height: 64px; }
+  .grid b { color: var(--accent); margin-right: 4px; }
+  .pack.on { background: var(--accent); color: var(--accent-ink); }
+  #log { font-family: var(--mono); font-size: 12px; max-height: 40vh; overflow: auto; white-space: pre-wrap;
+         background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+  .muted { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐣 Furby</h1>
+  <span id="state" class="pill disconnected">ei yhteyttä</span>
+</header>
+<main>
+  <section>
+    <div class="row"><button class="main" id="connect">Yhdistä Furbyyn</button>
+      <span class="muted" id="hint">Herätä Furby ensin.</span></div>
+  </section>
+  <section>
+    <h2>Juttele Furbyn kanssa</h2>
+    <div class="row"><input id="chat" placeholder="Kysy Furbylta jotain…"><button class="main" id="chatBtn">Kysy</button></div>
+    <button class="main" id="ptt" style="width:100%; margin-top:8px; padding:18px; font-size:18px; touch-action:none; user-select:none">🎤 Pidä pohjassa ja puhu</button>
+    <div class="row" style="margin-top:10px">
+      <button id="vadBtn" style="flex:1">👂 Kuuntele itsestään: pois</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <span class="muted">kynnys</span>
+      <input id="vadThr" type="range" min="0.005" max="0.15" step="0.005" value="0.03" style="flex:1; padding:0">
+      <span class="muted" id="vadThrVal">0.030</span>
+    </div>
+    <div style="height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:6px">
+      <div id="vadLevel" style="height:100%; width:0; background:var(--accent)"></div>
+    </div>
+  </section>
+  <section>
+    <h2>Puhu heti</h2>
+    <div class="row"><input id="say" placeholder="Mitä Furby sanoo?"><button class="main" id="sayBtn">Sano</button></div>
+  </section>
+  <section>
+    <h2>Uusi ääni</h2>
+    <div class="row">
+      <select id="kind"><option value="sfx">💥 efekti</option><option value="music">🎵 laulu</option></select>
+      <input id="prompt" placeholder="cartoon robot boing">
+      <button id="genBtn">Tee</button>
+    </div>
+    <h2 style="margin-top:12px">Äänipankki</h2>
+    <div id="bank" class="row"></div>
+  </section>
+  <section>
+    <h2>Paketti</h2>
+    <div id="packs" class="row"></div>
+    <h2 style="margin-top:12px">Lauseet ja eleet</h2>
+    <div id="items" class="grid"></div>
+  </section>
+  <section>
+    <h2>Asetukset</h2>
+    <div class="row"><input id="key" type="password" placeholder="ElevenLabs API key (jää vain tähän puhelimeen)">
+      <button id="saveKey">Tallenna</button></div>
+    <p class="muted">Avain tallentuu vain tämän puhelimen selaimeen. Älä jaa tätä sivua avaimen kanssa.</p>
+  </section>
+  <section>
+    <h2>Loki</h2>
+    <div id="log"></div>
+  </section>
+</main>
+<script>
+// old phones keep the Chrome they shipped with (83 on a reset Poco F1): replaceChildren is Chrome 86+
+if (!Element.prototype.replaceChildren) {
+  Element.prototype.replaceChildren = function (...nodes) { while (this.firstChild) this.firstChild.remove(); this.append(...nodes); };
+}
+// Furby Connect BLE (PyFluff / bluefluff)
+const SVC = "dab91435-b5a1-e29c-b041-bcd562613bde";
+const GP_W = "dab91383-b5a1-e29c-b041-bcd562613bde";
+const GP_N = "dab91382-b5a1-e29c-b041-bcd562613bde";
+const VOICE = "cgSgspJ2msm6clMCkdW9";   // ElevenLabs "Jessica"
+const RATE = Math.pow(2, 3 / 12);         // +3 semitones (also ~19 % faster)
+const MSG = { 0x06: "RESPONSE_PLAYED", 0x07: "SPEECH_PLAYING", 0x0c: "SEQUENCE_PLAYING", 0x0e: "SEQUENCE_ENDED",
+              0x0f: "INPUT_OUT_OF_RANGE", 0x19: "GROUP_NOT_ACTIVE" };
+const $ = (id) => document.getElementById(id);
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+
+let device = null, gpw = null, packs = [], cur = store.get("pack", 0), keepalive = null, queue = Promise.resolve();
+
+function log(t) { const l = $("log"); l.textContent += new Date().toLocaleTimeString() + "  " + t + "\n"; l.scrollTop = l.scrollHeight; }
+function setState(s, label) { $("state").className = "pill " + s; $("state").textContent = label; }
+const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join(":");
+
+function send(bytes) {
+  // one write at a time; Web Bluetooth rejects overlapping GATT operations
+  queue = queue.then(async () => {
+    if (!gpw) return;
+    const v = new Uint8Array(bytes);
+    // writeValueWithoutResponse arrived in Chrome 85; old phones (e.g. Chrome 83 after a reset) only have writeValue
+    await (gpw.writeValueWithoutResponse ? gpw.writeValueWithoutResponse(v) : gpw.writeValue(v));
+  }).catch((e) => log("write: " + e));
+  return queue;
+}
+
+async function connect() {
+  try {
+    if (!device) {
+      device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: "Furby" }], optionalServices: [SVC] });
+      device.addEventListener("gattserverdisconnected", () => { gpw = null; setState("disconnected", "katkesi"); log("yhteys katkesi"); setTimeout(reconnect, 2000); });
+    }
+    setState("searching", "yhdistää…");
+    const srv = await device.gatt.connect();
+    const svc = await srv.getPrimaryService(SVC);
+    gpw = await svc.getCharacteristic(GP_W);
+    const gpn = await svc.getCharacteristic(GP_N);
+    gpn.addEventListener("characteristicvaluechanged", (e) => {
+      const d = new Uint8Array(e.target.value.buffer);
+      if (d[0] === 0x21 || d[0] === 0x22) return;                       // sensors / keepalive status
+      log("← " + hex(d.buffer) + (d[0] === 0x20 ? "  " + (MSG[d[1]] ?? "") : ""));
+    });
+    await gpn.startNotifications();
+    clearInterval(keepalive);
+    keepalive = setInterval(() => send([0x20, 0x06]), 3000);           // keeps Furby awake (furby-connect-ai)
+    setState("connected", "yhdistetty");
+    log("yhdistetty: " + device.name);
+  } catch (e) { setState("disconnected", "ei yhteyttä"); log("yhdistys: " + e.message); }
+}
+// Furby drops the link when it sleeps or restarts; keep retrying (no new chooser needed for a known device)
+let reconnecting = false;
+async function reconnect() {
+  if (reconnecting) return;
+  reconnecting = true;
+  try {
+    while (device && !device.gatt.connected) {
+      await connect();
+      if (!device.gatt.connected) await new Promise((r) => setTimeout(r, 4000));
+    }
+  } finally { reconnecting = false; }
+}
+
+const items = () => (packs[cur]?.items ?? {});
+function act(a, why) { log(`→ ele ${a.join("/")} ${why ?? ""}`); return send([0x13, 0x00, ...a]); }
+function talkFor(secs) {
+  const t = Object.values(items()).filter((v) => v.talk).sort((a, b) => a.talk - b.talk);
+  return (t.find((v) => v.talk >= secs) ?? t[t.length - 1])?.action;
+}
+function moves() { return Object.values(items()).filter((v) => v.gesture).map((v) => v.action); }
+
+let speakingNow = false;  // the hands-free listener ignores the mic while this phone plays sound
+async function play(blob, kind) {
+  speakingNow = true;
+  try { await playInner(blob, kind); } finally { setTimeout(() => { speakingNow = false; }, 400); }
+}
+async function playInner(blob, kind) {
+  const a = new Audio(URL.createObjectURL(blob));
+  a.preservesPitch = false; a.webkitPreservesPitch = false; a.playbackRate = kind === "speech" ? RATE : 1;
+  await new Promise((r) => { a.onloadedmetadata = r; a.onerror = r; });
+  const secs = (a.duration || 2) / a.playbackRate;
+  await a.play();                                   // gesture goes out the moment the sound starts
+  if (kind === "raw") { /* caller moves Furby itself */ }
+  else if (kind === "speech") { const t = talkFor(secs); if (t) act(t, `nokka ${secs.toFixed(1)} s`); }
+  else if (kind === "sfx") { const m = moves(); if (m.length) act(m[Math.floor(Math.random() * m.length)], "efekti"); }
+  else {
+    let n = 0;
+    const tick = () => { if (a.paused || a.ended) return;
+      const m = moves(); const t = talkFor(4);
+      if (n++ % 2 === 0 && m.length) act(m[Math.floor(Math.random() * m.length)], "tanssi"); else if (t) act(t, "laulu");
+      setTimeout(tick, 4000); };
+    tick();
+  }
+  await new Promise((r) => (a.onended = r));
+}
+
+// the subscription allows 6 concurrent requests; stay under it (fillers, story sentences and effects all queue here)
+const ELEVEN_MAX = 4;
+let elevenActive = 0; const elevenWaiting = [];
+async function eleven(path, body) {
+  if (elevenActive >= ELEVEN_MAX) await new Promise((r) => elevenWaiting.push(r));
+  elevenActive++;
+  try { return await elevenCall(path, body); }
+  finally { elevenActive--; const next = elevenWaiting.shift(); if (next) next(); }
+}
+async function elevenCall(path, body) {
+  const key = store.get("key", "");
+  if (!key) { log("anna ElevenLabs-avain asetuksissa"); throw new Error("no key"); }
+  const r = await fetch("https://api.elevenlabs.io" + path, { method: "POST",
+    headers: { "xi-api-key": key, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) { const t = await r.text(); log(`ElevenLabs ${r.status}: ${t.slice(0, 200)}`); throw new Error(r.status); }
+  return r.blob();
+}
+
+// sound bank: blobs in Cache Storage, metadata in localStorage
+async function bankPut(kind, prompt, blob) {
+  const list = store.get("bank", []); const id = Date.now();
+  try { const c = await caches.open("furby-bank"); await c.put(`/bank/${id}`, new Response(blob)); } catch {}
+  list.push({ id, kind, prompt }); store.set("bank", list); renderBank();
+}
+async function bankPlay(s) {
+  try { const r = await (await caches.open("furby-bank")).match(`/bank/${s.id}`); if (r) return play(await r.blob(), s.kind); } catch {}
+  log("ääntä ei löytynyt välimuistista");
+}
+function renderBank() {
+  $("bank").replaceChildren(...store.get("bank", []).map((s) => {
+    const b = document.createElement("button");
+    b.textContent = (s.kind === "music" ? "🎵 " : "💥 ") + s.prompt.slice(0, 24);
+    b.onclick = () => bankPlay(s); return b;
+  }));
+}
+
+function renderPacks() {
+  $("packs").replaceChildren(...packs.map((p, n) => {
+    const b = document.createElement("button");
+    b.className = "pack" + (n === cur ? " on" : ""); b.textContent = p.name;
+    b.onclick = async () => {
+      cur = n; store.set("pack", n); renderPacks();
+      if (p.slot != null) { log(`aktivoi ${p.name} (slotti ${p.slot}); äänet vaihtuvat Furbyn uudelleenkäynnistyksen jälkeen`);
+        await send([0x60, p.slot]); await new Promise((r) => setTimeout(r, 2000)); await send([0x61]); }
+    };
+    return b;
+  }));
+  $("items").replaceChildren(...Object.entries(items()).map(([k, v]) => {
+    const b = document.createElement("button");
+    b.innerHTML = `<b></b><span></span>`; b.querySelector("b").textContent = k; b.querySelector("span").textContent = v.text;
+    b.onclick = () => act(v.action, v.text); return b;
+  }));
+}
+
+async function busy(btn, label, fn) { const t = btn.textContent; btn.disabled = true; btn.textContent = label;
+  try { await fn(); } catch {} finally { btn.disabled = false; btn.textContent = t; } }
+
+$("connect").onclick = connect;
+
+// flash: ~0.27 s per sentence vs ~1.1 s for multilingual_v2 (measured 2026-10-18)
+const TTS_MODEL = "eleven_flash_v2_5";
+// language_code pins Finnish: without it short lines ("Hetkinen…") get read with a foreign accent
+const tts = (text) => eleven(`/v1/text-to-speech/${VOICE}?output_format=mp3_44100_128`, { text, model_id: TTS_MODEL, language_code: "fi" });
+const sfx = (prompt, seconds = 1.5) => eleven("/v1/sound-generation", { text: prompt, duration_seconds: seconds, prompt_influence: 0.7 });
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+async function speak(text) { await play(await tts(text), "speech"); }
+
+$("sayBtn").onclick = () => busy($("sayBtn"), "…", async () => {
+  const text = $("say").value.trim(); if (text) await speak(text);
+});
+$("say").onkeydown = (e) => { if (e.key === "Enter") $("sayBtn").click(); };
+
+// sounds Furby needs instantly: made once per page load, then played from memory
+const FILLER_TEXTS = ["Hetkinen…", "Hmm, mietitäänpä…", "Odotas…", "Ooh, hyvä kysymys!", "Mmm, annas kun mietin…",
+                      "Hmm-hmm…", "Jaahas…", "Kas kummaa…", "Odota pikkuisen…", "No niin…"];
+const ready = { fillers: [], laugh: null };
+async function prepareSounds() {
+  if (!store.get("key", "")) return;
+  ready.fillers = (await Promise.all(FILLER_TEXTS.map((t) => tts(t).catch(() => null)))).filter(Boolean);
+  try { ready.laugh = await sfx("tiny cute high-pitched cartoon creature giggle", 1.5); } catch {}
+}
+
+// the moment the child stops talking: a body gesture plus a short "hmm" so the wait never feels empty
+function thinking() {
+  const m = moves(); if (m.length) act(pick(m), "miettii");
+  return ready.fillers.length ? play(pick(ready.fillers), "raw") : Promise.resolve();
+}
+
+// split the streamed answer into sentences and [tags]; a segment is ready once it is followed by whitespace
+const TAG = /\[(liike|nauru|efekti:[^\]]*)\]/gi;
+function takeSegments(state, final) {
+  const out = [];
+  for (;;) {
+    const m = state.buf.match(/^\s*([\s\S]*?(?:[.!?…]+|\]))(\s+)/);
+    if (!m) break;
+    out.push(m[1]); state.buf = state.buf.slice(m[0].length);
+  }
+  if (final && state.buf.trim()) { out.push(state.buf.trim()); state.buf = ""; }
+  return out;
+}
+
+// one segment: its tags become gestures/sounds, its words become a sentence with the beak moving for exactly that long
+function prepareSegment(seg) {
+  const tags = [...seg.matchAll(TAG)].map((t) => t[1].toLowerCase());
+  const words = seg.replace(TAG, " ").replace(/\s+/g, " ").trim();
+  return {
+    tags: tags.map((t) => t.startsWith("efekti:") ? { kind: "sfx", blob: sfx(t.slice(7).trim()).catch(() => null) } : { kind: t }),
+    words,
+    speech: /[a-zåäö0-9]/i.test(words) ? tts(words).catch(() => null) : null,   // starts fetching right away
+  };
+}
+async function performSegment(s) {
+  for (const t of s.tags) {
+    if (t.kind === "liike") { const m = moves(); if (m.length) act(pick(m), "liike"); }
+    else if (t.kind === "nauru") { const m = moves(); if (m.length) act(pick(m), "nauru"); if (ready.laugh) await play(ready.laugh, "raw"); }
+    else if (t.kind === "sfx") { const b = await t.blob; if (b) await play(b, "sfx"); }
+  }
+  if (s.speech) { const b = await s.speech; if (b) await play(b, "speech"); }
+}
+
+// the brain lives on the computer: phone/serve.py streams opencode's (ACP) answer as it is written
+async function chat(text) {
+  log("sinä: " + text);
+  speakingNow = true;                                   // keep the hands-free mic shut until Furby is done
+  const think = thinking();
+  const queue = [];
+  let wake = null, done = false;
+  const push = (seg) => { queue.push(prepareSegment(seg)); if (wake) { wake(); wake = null; } };
+  const player = (async () => {
+    await think;
+    for (;;) {
+      if (queue.length) { await performSegment(queue.shift()); continue; }
+      if (done) break;
+      await new Promise((r) => (wake = r));
+    }
+  })();
+  try {
+    const r = await fetch("chat-stream", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    const st = { buf: "" }; let lines = "", answer = "";
+    for (;;) {
+      const { value, done: end } = await reader.read();
+      if (end) break;
+      lines += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = lines.indexOf("\n")) >= 0) {
+        const msg = JSON.parse(lines.slice(0, nl)); lines = lines.slice(nl + 1);
+        if (msg.t) { st.buf += msg.t; answer += msg.t; takeSegments(st, false).forEach(push); }
+        if (msg.error) log("aivot: " + msg.error);
+      }
+    }
+    takeSegments(st, true).forEach(push);
+    log("Furby: " + answer.trim());
+  } catch (err) { log("aivot: " + err.message); }
+  done = true; if (wake) { wake(); wake = null; }
+  await player;
+  setTimeout(() => { speakingNow = false; }, 400);
+}
+$("chatBtn").onclick = () => busy($("chatBtn"), "miettii…", async () => {
+  const text = $("chat").value.trim(); if (!text) return; $("chat").value = ""; await chat(text);
+});
+$("chat").onkeydown = (e) => { if (e.key === "Enter") $("chatBtn").click(); };
+
+// what the mic heard, minus [sound event] tags; null when nothing worth answering is left
+function cleanHeard(raw) {
+  const s = (raw || "").replace(/\[[^\]]*\]|\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+  return (s.match(/[a-zåäö]/gi) || []).length >= 3 ? s : null;
+}
+
+// push-to-talk: phone mic -> ElevenLabs Scribe (speech to text) -> chat()
+const PTT_IDLE = "🎤 Pidä pohjassa ja puhu";
+let micStream = null, rec = null, chunks = [];
+async function pttStart(e) {
+  e.preventDefault();
+  if (rec) return;
+  try {
+    micStream = micStream || await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = [];
+    rec = new MediaRecorder(micStream, { mimeType: "audio/webm;codecs=opus" });
+    rec.ondataavailable = (ev) => { if (ev.data.size) chunks.push(ev.data); };
+    rec.start();
+    $("ptt").textContent = "👂 kuuntelee… päästä irti kun valmis";
+  } catch (err) { log("mikki: " + err.message); rec = null; }
+}
+async function pttStop(e) {
+  e.preventDefault();
+  if (!rec) return;
+  const r = rec; rec = null;
+  await new Promise((ok) => { r.onstop = ok; r.stop(); });
+  const blob = new Blob(chunks, { type: "audio/webm" });
+  if (blob.size < 3000) { $("ptt").textContent = PTT_IDLE; return; }   // just a tap
+  await busy($("ptt"), "🤔 miettii…", async () => {
+    const fd = new FormData();
+    fd.append("model_id", "scribe_v2");
+    fd.append("language_code", "fin");        // no guessing: noisy kid speech came back as Igbo or Chinese
+    fd.append("tag_audio_events", "false");   // no [clicking] / [noise] turns
+    fd.append("file", blob, "puhe.webm");
+    const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text",
+                            { method: "POST", headers: { "xi-api-key": store.get("key", "") }, body: fd });
+    const j = await res.json();
+    if (!res.ok || !j.text) { log("kuuntelu: " + res.status + " " + JSON.stringify(j).slice(0, 160)); return; }
+    const heard = cleanHeard(j.text);
+    if (heard) await chat(heard); else log("(ei puhetta: " + (j.text || "").trim() + ")");
+  });
+  $("ptt").textContent = PTT_IDLE;
+}
+// hands-free: start recording when the level crosses the threshold, stop after a pause.
+// Paused while Furby talks (its voice comes from this phone's speaker) and while waiting for an answer.
+const VAD = { on: false, ctx: null, an: null, rec: null, chunks: [], loud: 0, quietSince: 0, startedAt: 0, busy: false };
+const VAD_START_MS = 120, VAD_SILENCE_MS = 700, VAD_MAX_MS = 15000;
+$("vadThr").value = store.get("vadThr", 0.03);
+$("vadThrVal").textContent = Number($("vadThr").value).toFixed(3);
+$("vadThr").oninput = () => { store.set("vadThr", Number($("vadThr").value)); $("vadThrVal").textContent = Number($("vadThr").value).toFixed(3); };
+
+async function vadSend(blob) {
+  VAD.busy = true;
+  try {
+    const fd = new FormData();
+    fd.append("model_id", "scribe_v2");
+    fd.append("language_code", "fin");        // no guessing: noisy kid speech came back as Igbo or Chinese
+    fd.append("tag_audio_events", "false");   // no [clicking] / [noise] turns
+    fd.append("file", blob, "puhe.webm");
+    const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text",
+                            { method: "POST", headers: { "xi-api-key": store.get("key", "") }, body: fd });
+    const j = await res.json();
+    const text = cleanHeard(j.text);
+    if (res.ok && text) await chat(text);                         // chat() also speaks the answer
+    else if (!res.ok) log("kuuntelu: " + res.status);
+  } catch (err) { log("kuuntelu: " + err.message); }
+  VAD.busy = false;
+}
+
+function vadTick() {
+  if (!VAD.on) return;
+  const buf = new Float32Array(VAD.an.fftSize);
+  VAD.an.getFloatTimeDomainData(buf);
+  let sum = 0; for (const v of buf) sum += v * v;
+  const rms = Math.sqrt(sum / buf.length), thr = Number($("vadThr").value), now = performance.now();
+  $("vadLevel").style.width = Math.min(100, rms / 0.15 * 100) + "%";
+  $("vadLevel").style.background = rms > thr ? "var(--ok)" : "var(--accent)";
+  if (VAD.busy || speakingNow) { VAD.loud = 0; }
+  else if (!VAD.rec) {
+    VAD.loud = rms > thr ? (VAD.loud || now) : 0;
+    if (VAD.loud && now - VAD.loud > VAD_START_MS) {
+      VAD.chunks = [];
+      VAD.rec = new MediaRecorder(micStream, { mimeType: "audio/webm;codecs=opus" });
+      VAD.rec.ondataavailable = (ev) => { if (ev.data.size) VAD.chunks.push(ev.data); };
+      VAD.rec.start(); VAD.startedAt = now; VAD.quietSince = 0;
+      $("vadBtn").textContent = "👂 kuulen puhetta…";
+    }
+  } else {
+    VAD.quietSince = rms > thr * 0.7 ? 0 : (VAD.quietSince || now);
+    if ((VAD.quietSince && now - VAD.quietSince > VAD_SILENCE_MS) || now - VAD.startedAt > VAD_MAX_MS) {
+      const r = VAD.rec; VAD.rec = null; VAD.loud = 0;
+      r.onstop = () => { const b = new Blob(VAD.chunks, { type: "audio/webm" }); if (b.size > 4000) vadSend(b); };
+      r.stop();
+      $("vadBtn").textContent = "👂 Kuuntele itsestään: päällä";
+    }
+  }
+  requestAnimationFrame(vadTick);
+}
+
+$("vadBtn").onclick = async () => {
+  VAD.on = !VAD.on;
+  $("vadBtn").textContent = "👂 Kuuntele itsestään: " + (VAD.on ? "päällä" : "pois");
+  if (!VAD.on) { if (VAD.rec) { VAD.rec.onstop = null; VAD.rec.stop(); VAD.rec = null; } $("vadLevel").style.width = "0"; return; }
+  try {
+    micStream = micStream || await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    VAD.ctx = VAD.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    await VAD.ctx.resume();
+    if (!VAD.an) { VAD.an = VAD.ctx.createAnalyser(); VAD.an.fftSize = 1024; VAD.ctx.createMediaStreamSource(micStream).connect(VAD.an); }
+    vadTick();
+  } catch (err) { log("mikki: " + err.message); VAD.on = false; $("vadBtn").textContent = "👂 Kuuntele itsestään: pois"; }
+};
+
+$("ptt").addEventListener("pointerdown", pttStart);
+$("ptt").addEventListener("pointerup", pttStop);
+$("ptt").addEventListener("pointercancel", pttStop);
+$("ptt").addEventListener("pointerleave", (e) => { if (rec) pttStop(e); });
+$("genBtn").onclick = () => busy($("genBtn"), "tekee…", async () => {
+  const prompt = $("prompt").value.trim(); if (!prompt) return; const kind = $("kind").value;
+  const blob = kind === "music"
+    ? await eleven("/v1/music", { prompt, music_length_ms: 15000 })
+    : await eleven("/v1/sound-generation", { text: prompt, duration_seconds: 3, prompt_influence: 0.7 });
+  await bankPut(kind, prompt, blob); await play(blob, kind);
+});
+$("saveKey").onclick = () => { store.set("key", $("key").value.trim()); $("key").value = ""; log("avain tallennettu"); };
+
+if (!navigator.bluetooth) { $("hint").textContent = "Tämä selain ei tue Web Bluetoothia (käytä Androidin Chromea)."; $("connect").disabled = true; }
+fetch("packs.json").then((r) => r.json()).then((p) => { packs = p; if (cur >= packs.length) cur = 0; renderPacks(); })
+  .catch(() => log("packs.json puuttuu"));
+renderBank();
+// served by phone/serve.py over `adb reverse`: take the key from the computer, if it has one
+fetch("config.json").then((r) => r.json()).then((c) => { if (c.elevenlabs_key) { store.set("key", c.elevenlabs_key); log("ElevenLabs-avain saatu koneelta"); } })
+  .catch(() => {}).then(prepareSounds).then(() => log(`valmiina: ${ready.fillers.length} täytettä, nauru ${ready.laugh ? "✓" : "–"}`));
+</script>
+</body>
+</html>
