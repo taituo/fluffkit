@@ -160,42 +160,64 @@ Clone from them. Only for voices you have the right to clone.
 
 The Chrome page needs the Mac, adb and the screen on. `android/` is the same companion as a native app
 (Kotlin, minSdk 29 / Android 10, no root): a foreground service holds the BLE link, the microphone, a
-partial wake lock and a Wi-Fi lock, so it keeps talking with the screen off.
+partial wake lock and a Wi-Fi lock, so it keeps listening with the screen off. Nothing is typed on the phone:
+keys and config come from the Mac, and the phone has only big buttons (listen on/off, sleep, wake, dance,
+rainbow) plus a subtitle mode that shows in large text what was heard and what Urho is saying.
 
 | piece | page (`phone/index.html`) | app (`android/app/src/main/java/fluffkit/companion/`) |
 |---|---|---|
 | BLE: GP write/notify, `20 06` every 3 s, reconnect | Web Bluetooth | `Furby.kt`: scan once for "Furby…", then reconnect by address |
 | listening | Web Audio level + MediaRecorder | `Listener.kt`: AudioRecord 16 kHz, same start/silence/max timings, 0.4 s pre-roll, WAV to Scribe |
-| brain | `serve.py` + `brain.py` | `Brain.kt`: streams `/v1/chat/completions` itself; persona, time of day, response styles, 12 turns |
+| brain | `serve.py` + `brain.py` | `Brain.kt`: streams the gateway itself (`/v1/responses` with effort, or `/v1/chat/completions`); persona, time of day, styles, 12 turns |
 | speech | flash TTS mp3 + Web Audio filter | `Eleven.kt` asks for `pcm_24000` (no decoding), `Voice.kt` filters and plays it on an AudioTrack |
 | turn | `chat()` | `FurbyCompanion.kt`: weighted fillers, sentence / 40-char pause cuts, tags, beak items, antenna |
 | tools | `TRICKS`, `sleepFurby()`, `lightShow()` | same tags: `[nukkumaan]` / `[herää]` (keepalive off while asleep), Furby's own tricks wait for `20 0e`, `[vilkku]`, `[valo: väri]` |
+| control | the page | `Remote.kt`: token-protected HTTP on port 8770, `android/furby_remote.py` |
 
 The persona, `furby-config.json` and `packs.json` are copied from `phone/` into the APK at build time
-(`packs.json` is gitignored: build where it exists; `-PphoneDir=…` builds with another checkout's `phone/`). Any of the three can be overridden on the phone by
-dropping a file into `/sdcard/Android/data/fluffkit.companion/files/` and tapping "Lataa asetukset";
-`furby-config.json` there is merged key by key over the bundled one.
+(`packs.json` is gitignored: build where it exists; `-PphoneDir=…` builds with another checkout's `phone/`),
+and can be replaced at run time with `furby_remote.py push`. `listen.threshold` in the config sets the mic level.
 
-Keys never go into the repo or the APK. They are typed once on the settings screen, or pushed as
-`files/secrets.json` (`elevenlabs_key`, `llm_url`, `llm_bearer`, `llm_model`), which the app moves into
-EncryptedSharedPreferences and deletes on its next start.
-
-Build and install (JDK 17–21; the Android SDK path goes in `android/local.properties`):
+Keys never go into the repo, the APK or the log. `furby_remote.py setup` pushes them over adb as
+`files/secrets.json` (ElevenLabs key from a file you name, gateway bearer from
+`~/.config/fluffkit/gateway_bearer`, a remote token it keeps in `~/.config/fluffkit/companion_token`); the app
+moves them into EncryptedSharedPreferences and deletes the file.
 
 ```bash
 cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew assembleDebug
 ```
 ```bash
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+python3 android/furby_remote.py setup --eleven-key-file ~/11labs.md
+```
+```bash
+python3 android/furby_remote.py push
+```
+```bash
+python3 android/furby_remote.py chat "Kerro vitsi"
 ```
 
-On MIUI (Poco F1), adb installs fail with `INSTALL_FAILED_USER_RESTRICTED` until Developer options →
-"Install via USB" is on. Also set the app's battery saver to "No restrictions" (button "Akku: ei rajoituksia"),
-or MIUI stops the service with the screen off.
+Remote API (`Authorization: Bearer <token>`, `http://<phone>:8770` on the LAN or via `adb forward`):
+`GET /status`, `GET /log`, `POST /say {text}`, `/chat {text}`, `/sleep`, `/wake`, `/trick {name}`,
+`/light {colour | "vilkku"}`, `/listen {on}`, `/config` (reload), `/connect`, `/cmd {cmd, text}`,
+`PUT /file/<furby-config.json | AGENTS.md | packs.json>`, `POST /secrets {…}`. The same commands work over adb:
+`adb shell am broadcast -a fluffkit.companion.DEBUG --es cmd say --es text "Hei"` (shell-only receiver).
 
-The brain URL defaults to `http://127.0.0.1:8788/v1`, which reaches the Mac's gateway only through
-`adb reverse tcp:8788 tcp:8788`. For the backpack the gateway has to be reachable from the phone's
-network (LAN address, or a tunnel such as Tailscale) and the URL changed on the settings screen.
+Measured on the Poco F1 (2026-10-18): Scribe 0.6 s, Muse Spark (`/v1/responses`, effort minimal, through
+`adb reverse`) 2.0–2.9 s to the first piece; the beak item for each sentence goes out as the sound starts.
+
+Lessons from the Poco F1 (MIUI, Android 10):
+
+- `adb install` and `pm install` fail with `INSTALL_FAILED_USER_RESTRICTED` and `adb shell input` is refused until
+  Developer options → "Install via USB" / "USB debugging (Security settings)" are on. Without them, push the APK
+  to `/sdcard/Download` and tap it in File Manager.
+- Android's ICU regex rejects Java's inline `(?U)`; `\w` and `\b` are Unicode there already. Before asking for an
+  install, run the app's own checks on the phone without installing:
+  `adb push app-debug.apk /data/local/tmp/furby.apk && adb shell CLASSPATH=/data/local/tmp/furby.apk app_process / fluffkit.companion.SelfTest`.
+- Furby takes one BLE central at a time: stop the Chrome page before the app can connect.
+- Set the app's battery saver to "No restrictions" ("Loki ja huolto" → "Akku"), or MIUI may stop the service.
+- The brain URL defaults to `http://127.0.0.1:8788/v1`, the Mac's gateway through `adb reverse tcp:8788 tcp:8788`.
+  For the backpack the gateway has to be reachable from the phone's network (LAN or Tailscale):
+  `furby_remote.py setup --llm-url http://<mac>:8788/v1`.
 
 ## Companion hardware: inside the battery box
 
