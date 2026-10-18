@@ -1,5 +1,5 @@
 {
-  "persona": "selianne",
+  "persona": "ukko",
   "personas": {
     "urho": {
       "name": "Urho",
@@ -26,15 +26,34 @@
         "speed": 0.95,
         "stability": 0.5
       }
+    },
+    "ukko": {
+      "name": "Ukko",
+      "wake": [
+        "ukko",
+        "ukkoa",
+        "ukolle"
+      ],
+      "colour": [
+        255,
+        170,
+        40
+      ],
+      "voice": {
+        "id": "nPczCjzI2devNBz1zQrb",
+        "semitones": -2,
+        "speed": 0.88,
+        "stability": 0.6
+      }
     }
   },
   "voice": {
-    "id": "cgSgspJ2msm6clMCkdW9",
+    "id": "nPczCjzI2devNBz1zQrb",
     "model": "eleven_flash_v2_5",
     "language": "fi",
-    "semitones": 0,
-    "speed": 0.95,
-    "stability": 0.5,
+    "semitones": -2,
+    "speed": 0.88,
+    "stability": 0.6,
     "similarity": 0.85
   },
   "fx": {

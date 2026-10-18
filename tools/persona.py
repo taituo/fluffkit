@@ -51,6 +51,8 @@ def main() -> None:
     CONFIG.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"persona {name}: AGENTS.md built, voice {cfg['voice']['id']}")
     if "--push" in sys.argv:
+        for f in [AGENT / "common.md", *sorted((AGENT / "personas").glob("*.md"))]:   # the app builds its own prompt
+            print(f.relative_to(AGENT), put(str(f.relative_to(AGENT)), f.read_bytes()))
         print("AGENTS.md:", put("AGENTS.md", agents.encode()))
         print("furby-config.json:", put("furby-config.json", CONFIG.read_bytes()))
 
