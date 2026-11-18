@@ -484,7 +484,20 @@ def cmd_upload(args) -> None:
             await f.disconnect()
     asyncio.run(go())
 
-
+def cmd_debug(args)->None:
+    """default debug screen for watching uploads args.screen=6"""
+    import asyncio
+    
+    FurbyConnect, _ = _pyfluff()
+    furby=FurbyConnect()
+    
+    async def go():
+        await furby.connect()
+        await furby.cycle_debug_menu()
+        await furby.disconnect()
+    
+    asyncio.run(go())
+	
 def _resolve(mapping: dict, key: str) -> str:
     key = key.strip()
     if key in mapping:
@@ -583,6 +596,7 @@ def main() -> None:
     p = sub.add_parser("say"); p.add_argument("what", nargs="+", help="item number(s) or text; '-' = keep connection, read stdin")
     p.add_argument("--map", default="pack.json"); p.add_argument("--gap", type=float, default=0.15, help="pause between chained items (s)")
     p.add_argument("--address")
+	p = sub.add_parser("debug");
     a = ap.parse_args()
 
     if a.cmd == "tts":
@@ -597,7 +611,7 @@ def main() -> None:
     elif a.cmd == "decode":
         decode_body(read_a18_body(Path(a.input)), Path(a.output))
     else:
-        {"pack": cmd_pack, "check": cmd_check, "slots": cmd_slots, "eyes": cmd_eyes, "amf": cmd_amf, "esphome": cmd_esphome,
+        {"debug":cmd_debug,"pack": cmd_pack, "check": cmd_check, "slots": cmd_slots, "eyes": cmd_eyes, "amf": cmd_amf, "esphome": cmd_esphome,
          "upload": cmd_upload, "say": cmd_say}[a.cmd](a)
 
 
